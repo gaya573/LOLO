@@ -1,0 +1,32 @@
+# Local worker runs commands on this PC.
+workers:
+  - name: local
+    type: local
+    enabled: true
+    max_jobs: 2
+    workdir: .
+
+  # Example remote worker. Edit host/user/repo_path, then set enabled: true.
+  - name: office-pc-2
+    type: ssh
+    enabled: false
+    host: 192.168.0.22
+    user: your_user
+    port: 22
+    max_jobs: 2
+    workdir: C:/work/your-repo
+    ssh_options:
+      - BatchMode=yes
+      - ConnectTimeout=8
+
+  - name: office-pc-3
+    type: ssh
+    enabled: false
+    host: 192.168.0.23
+    user: your_user
+    port: 22
+    max_jobs: 2
+    workdir: C:/work/your-repo
+    ssh_options:
+      - BatchMode=yes
+      - ConnectTimeout=8
