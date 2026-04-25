@@ -16,6 +16,24 @@ It does not combine several PCs into one CPU. Instead, it splits independent fil
 
 ## Quick Start
 
+### Download Installer
+
+Download and run:
+
+```text
+dist\LocalComputeMCP-Setup.exe
+```
+
+The setup wizard installs `LocalCompute.exe`, creates shortcuts, and opens the app.
+
+Default install location:
+
+```text
+%LOCALAPPDATA%\LocalComputeMCP
+```
+
+After install, open `Local Compute MCP` from the Desktop or Start Menu.
+
 ### Easiest: Double Click App
 
 Double-click:

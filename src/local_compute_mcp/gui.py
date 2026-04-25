@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import queue
+import sys
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -10,7 +11,13 @@ from .config import Worker, load_all_workers, load_workers, save_workers
 from .runner import discover_jobs, retry_failed, run_jobs, test_worker
 
 
-APP_DIR = Path(__file__).resolve().parents[2]
+def app_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parents[2]
+
+
+APP_DIR = app_dir()
 CONFIG_PATH = APP_DIR / "workers.yaml"
 
 

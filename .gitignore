@@ -6,6 +6,7 @@ env/
 
 logs/
 outputs/
+release_build/
 
 .DS_Store
 Thumbs.db
