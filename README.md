@@ -16,6 +16,45 @@ It does not combine several PCs into one CPU. Instead, it splits independent fil
 
 ## Quick Start
 
+### Easiest: Double Click App
+
+Double-click:
+
+```text
+start_app.bat
+```
+
+The app lets you:
+
+- register another PC
+- save `workers.yaml`
+- test SSH connection
+- choose an input folder
+- run jobs
+- retry failed jobs
+
+For another PC on the same Wi-Fi, use its local IP such as:
+
+```text
+192.168.0.22
+```
+
+For Tailscale or ZeroTier, use the IP shown inside that app. The rest is the same.
+
+Before running remote jobs, this command must work from the main PC:
+
+```powershell
+ssh user@192.168.0.22 "echo hello"
+```
+
+For Tailscale, it looks more like:
+
+```powershell
+ssh user@100.x.y.z "echo hello"
+```
+
+If SSH does not work yet, use only the `local` worker or install/enable SSH on the other PC first.
+
 1. Edit `workers.yaml`.
 2. Test workers:
 

@@ -29,6 +29,41 @@ def load_workers(config_path: str | Path) -> list[Worker]:
     return [Worker(**item) for item in workers if item.get("enabled", True)]
 
 
+def load_all_workers(config_path: str | Path) -> list[Worker]:
+    path = Path(config_path)
+    data = _load_yaml_subset(path.read_text(encoding="utf-8"))
+    workers = data.get("workers", [])
+    return [Worker(**item) for item in workers]
+
+
+def save_workers(config_path: str | Path, workers: list[Worker]) -> None:
+    path = Path(config_path)
+    lines = ["# Edit in the app or by hand. Same Wi-Fi, Tailscale, and ZeroTier all use host/IP here.", "workers:"]
+    for worker in workers:
+        lines.extend(
+            [
+                f"  - name: {_yaml_scalar(worker.name)}",
+                f"    type: {_yaml_scalar(worker.type)}",
+                f"    enabled: {_yaml_bool(worker.enabled)}",
+                f"    max_jobs: {worker.max_jobs}",
+                f"    workdir: {_yaml_scalar(worker.workdir)}",
+            ]
+        )
+        if worker.type == "ssh":
+            lines.extend(
+                [
+                    f"    host: {_yaml_scalar(worker.host)}",
+                    f"    user: {_yaml_scalar(worker.user)}",
+                    f"    port: {worker.port}",
+                    "    ssh_options:",
+                ]
+            )
+            options = worker.ssh_options or ["BatchMode=yes", "ConnectTimeout=8"]
+            for option in options:
+                lines.append(f"      - {_yaml_scalar(option)}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def _parse_scalar(value: str) -> Any:
     value = value.strip()
     if value in {"true", "True"}:
@@ -43,6 +78,19 @@ def _parse_scalar(value: str) -> Any:
         return int(value)
     except ValueError:
         return value
+
+
+def _yaml_bool(value: bool) -> str:
+    return "true" if value else "false"
+
+
+def _yaml_scalar(value: str) -> str:
+    if value == "":
+        return '""'
+    safe = all(ch.isalnum() or ch in "._-/:\\" for ch in value)
+    if safe:
+        return value
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def _load_yaml_subset(text: str) -> dict[str, Any]:
