@@ -55,6 +55,87 @@ ssh user@100.x.y.z "echo hello"
 
 If SSH does not work yet, use only the `local` worker or install/enable SSH on the other PC first.
 
+## Shared Disk: A Computer Stores Everything
+
+For multiple PCs, this is the recommended beginner setup:
+
+```text
+A/main PC
+  C:\LocalComputeShare
+    input\
+    outputs\
+    logs\
+
+B/C worker PCs
+  read/write through \\A-PC\LocalComputeShare
+```
+
+Same Wi-Fi, Tailscale, and ZeroTier all work the same way. The only difference is which name/IP you use to reach A.
+
+### Step 1: Create The Share On A
+
+On the A/main computer, double-click:
+
+```text
+setup_shared_disk_on_A_admin.bat
+```
+
+Or open PowerShell as Administrator and run:
+
+```powershell
+.\scripts\setup_shared_disk_on_A.ps1
+```
+
+It creates:
+
+```text
+C:\LocalComputeShare\input
+C:\LocalComputeShare\outputs
+C:\LocalComputeShare\logs
+```
+
+And shares it as:
+
+```text
+\\A-COMPUTER-NAME\LocalComputeShare
+```
+
+### Step 2: Test From B/C
+
+On B/C, test access:
+
+```powershell
+.\scripts\test_shared_disk_access.ps1 -SharePath "\\A-COMPUTER-NAME\LocalComputeShare"
+```
+
+Optional drive mapping:
+
+```powershell
+.\scripts\map_shared_disk_on_worker.ps1 -MainComputer "A-COMPUTER-NAME"
+```
+
+For SSH jobs, prefer the UNC path over a mapped drive:
+
+```text
+\\A-COMPUTER-NAME\LocalComputeShare\input
+\\A-COMPUTER-NAME\LocalComputeShare\outputs
+\\A-COMPUTER-NAME\LocalComputeShare\logs
+```
+
+### Step 3: Use These Paths In The App
+
+Double-click `start_app.bat`, then set:
+
+```text
+Input 폴더 : \\A-COMPUTER-NAME\LocalComputeShare\input
+Output 폴더: \\A-COMPUTER-NAME\LocalComputeShare\outputs
+Logs 폴더  : \\A-COMPUTER-NAME\LocalComputeShare\logs
+```
+
+Put Excel/PDF/image files into `input`, then click `작업 실행`.
+
+Important: B/C must be able to access the shared folder using the same Windows account permission. If remote SSH works but the shared disk fails, fix Windows sharing permission first.
+
 1. Edit `workers.yaml`.
 2. Test workers:
 
