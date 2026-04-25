@@ -34,6 +34,31 @@ Default install location:
 
 After install, open `Local Compute MCP` from the Desktop or Start Menu.
 
+## Beginner Flow
+
+1. Install and open `Local Compute MCP`.
+2. Click `Find Wi-Fi PCs`.
+3. Click `Scan`.
+4. Select a found IP and click `Add Selected`.
+5. Enter the Windows username for that PC.
+6. Click `Test SSH`.
+7. Set shared disk paths like `\\A-PC\LocalComputeShare\input`.
+8. Click `Run Jobs`.
+
+Same Wi-Fi discovery scans your current LAN subnet. Tailscale and ZeroTier devices may not appear in that scan, so add their `100.x.x.x` or virtual network IP manually.
+
+## What Commands Can It Run?
+
+It can run almost anything that works in Windows command line:
+
+- Python: `python check_excel.py {input_q} {output_dir_q}`
+- PowerShell: `powershell -ExecutionPolicy Bypass -File check.ps1 {input_q} {output_dir_q}`
+- Batch/CMD: `check_excel.bat {input_q} {output_dir_q}`
+- EXE tools: `mytool.exe {input_q} {output_dir_q}`
+- Node: `node check.js {input_q} {output_dir_q}`
+
+Important: every worker PC must have the required program installed. If the command uses Python, B/C also need Python and the same packages. If it uses Excel automation, B/C need Excel installed too.
+
 ### Easiest: Double Click App
 
 Double-click:
