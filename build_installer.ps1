@@ -25,6 +25,7 @@ Copy-Item (Join-Path $Root "workers.yaml") $PayloadDir
 Copy-Item (Join-Path $Root "README.md") $PayloadDir
 Copy-Item (Join-Path $Root "scripts") $PayloadDir -Recurse
 Copy-Item (Join-Path $Root "samples") $PayloadDir -Recurse
+Copy-Item (Join-Path $Root "setup_shared_disk_on_A_admin.bat") $PayloadDir
 
 Compress-Archive -Path (Join-Path $PayloadDir "*") -DestinationPath (Join-Path $BuildDir "payload.zip") -Force
 
