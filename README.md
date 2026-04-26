@@ -1,73 +1,277 @@
 # Local Compute
 
-여러 대의 Windows PC로 파일 작업을 나눠 처리하는 앱입니다.
+Local Compute is a Windows app that helps non-developers connect multiple PCs, share one work folder, and process files across those PCs.
 
-비개발자도 쓰기 쉽게 화면을 메뉴별로 나눴습니다.
-
-## 설치
-
-아래 설치 파일을 실행합니다.
+The app is intentionally menu-based:
 
 ```text
-dist\LocalComputeMCP-Setup.exe
+Home
+Device Registration
+Shared Folder Management
+File Processing
+Running Log
+Error Log
+MCP Connection
 ```
 
-설치 후 바탕화면 또는 시작 메뉴에서 `Local Compute`를 엽니다.
+## Current Status
 
-## 앱 메뉴
+| Area | Status | Notes |
+|---|---:|---|
+| Windows GUI app | Done | Tkinter-based desktop app |
+| Setup wizard | Done | `dist/LocalComputeMCP-Setup.exe` |
+| Device registration menu | Done | Same-Wi-Fi scan, manual add, pairing-code flow |
+| Pairing code flow | Prototype | Shows 6-digit code and discovers it on LAN |
+| Shared folder setup | Done | Creates `C:\LocalComputeShare` on A/main PC |
+| File processing engine | Done | Splits independent files across workers |
+| Retry failed files | Done | Uses `logs/joblog.tsv` |
+| MCP server | Done | Tools for list/test/run/retry |
+| Sound hub | Not built | Planned feature |
+| Remote screen sharing/control | Not built | Possible, but separate heavy feature |
 
-| 메뉴 | 하는 일 |
+## Important Concept
+
+This app does **not** merge CPUs into one giant CPU.
+
+It does this:
+
+```text
+file001.xlsx -> PC A
+file002.xlsx -> PC B
+file003.xlsx -> PC C
+```
+
+Each PC runs its own task, then writes results back to the shared folder.
+
+## File Map For Other AI / Developers
+
+| Path | Purpose |
 |---|---|
-| 기기 등록 | 작업을 도와줄 다른 PC를 연결합니다. |
-| 공유폴더 관리 | A컴퓨터에 공용 폴더를 만들고 input/outputs/logs를 관리합니다. |
-| 파일 처리 | 처리할 파일 폴더를 고르고 시작합니다. |
-| 실행중인 로그 | 앱이 지금 무엇을 하는지 보여줍니다. |
-| 에러 로그 | 실패한 파일과 이유만 따로 보여줍니다. |
-| MCP 연결방법 | Codex/Cursor 같은 도구와 연결할 때만 봅니다. |
+| `src/local_compute_mcp/gui.py` | Main non-developer GUI app |
+| `src/local_compute_mcp/runner.py` | Distributed job runner |
+| `src/local_compute_mcp/config.py` | `workers.yaml` parser/writer |
+| `src/local_compute_mcp/discovery.py` | Same-Wi-Fi/LAN PC discovery |
+| `src/local_compute_mcp/pairing.py` | 6-digit pairing-code prototype |
+| `src/local_compute_mcp/server.py` | MCP stdio server |
+| `src/local_compute_mcp/cli.py` | CLI wrapper |
+| `workers.yaml` | Registered PCs/workers |
+| `scripts/setup_shared_disk_on_A.ps1` | Creates Windows shared folder on main PC |
+| `setup_shared_disk_on_A_admin.bat` | Runs shared-folder setup as admin |
+| `installer/installer.py` | Setup wizard source |
+| `installer/app_entry.py` | PyInstaller entry for app |
+| `build_installer.ps1` | Builds `LocalCompute.exe` and setup EXE |
+| `dist/LocalComputeMCP-Setup.exe` | Installer output |
+| `samples/` | Sample input and sample worker |
 
-## 가장 쉬운 사용 순서
+## Install / Build
 
-1. A컴퓨터와 B컴퓨터에 앱을 설치합니다.
-2. B컴퓨터에서 `기기 등록` 메뉴를 엽니다.
-3. B컴퓨터에서 `기기 연결 허용`을 누릅니다.
-4. B컴퓨터 화면에 6자리 번호가 뜹니다.
-5. A컴퓨터에서 `기기 등록` 메뉴를 엽니다.
-6. A컴퓨터에서 `번호로 기기 추가`를 누르고 번호를 입력합니다.
-7. A컴퓨터에서 `공유폴더 관리` 메뉴를 엽니다.
-8. `이 PC를 공유폴더 PC로 설정`을 누릅니다.
-9. `파일 처리` 메뉴에서 파일 폴더를 고릅니다.
-10. `파일 처리 시작`을 누릅니다.
+### For Users
 
-## 공유폴더 구조
+Download and run:
 
-A컴퓨터 기준으로 아래 폴더를 만듭니다.
+```text
+dist/LocalComputeMCP-Setup.exe
+```
+
+If Windows blocks the unsigned EXE, run the app from source:
+
+```powershell
+cd C:\Users\rje28\local-compute-mcp
+$env:PYTHONPATH="C:\Users\rje28\local-compute-mcp\src"
+python -m local_compute_mcp.gui
+```
+
+### For Developers / AI Agents
+
+Build the installer:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build_installer.ps1
+```
+
+Run tests/smoke checks:
+
+```powershell
+python -m py_compile src\local_compute_mcp\gui.py src\local_compute_mcp\runner.py src\local_compute_mcp\server.py
+.\run_cli.bat test
+.\run_cli.bat run --input .\samples\input --pattern *.txt --command "python samples\sample_worker.py {input_q} {output_dir_q}"
+```
+
+## User Flow
+
+| Step | Menu | User Action | Result |
+|---:|---|---|---|
+| 1 | Device Registration | Click `Find same Wi-Fi PC` | Finds possible PCs on LAN |
+| 2 | Device Registration | Or click `Allow this device to connect` | Shows 6-digit code |
+| 3 | Device Registration | Other PC clicks `Connect by number` | Adds device by pairing code |
+| 4 | Shared Folder Management | Click `Make this PC shared storage` | Creates `C:\LocalComputeShare` |
+| 5 | File Processing | Put files into `input` | Files are ready |
+| 6 | File Processing | Click `Start file processing` | Work is split across PCs |
+| 7 | Running Log | View job log | Shows progress/results |
+| 8 | Error Log | View failed jobs | Shows only failures |
+
+## Shared Folder Design
+
+Main PC A owns the shared folder:
 
 ```text
 C:\LocalComputeShare
-  input
-  outputs
-  logs
+  input\
+  outputs\
+  logs\
 ```
 
-사용자는 `input` 폴더에 처리할 파일을 넣고, 결과는 `outputs` 폴더에서 확인합니다.
-
-## 어떤 작업을 실행할 수 있나요?
-
-기본 화면에서는 복잡한 명령어를 숨겼습니다.
-
-고급 설정을 켜면 아래 같은 작업도 실행할 수 있습니다.
+Network path:
 
 ```text
-python check_excel.py {input_q} {output_dir_q}
-powershell -ExecutionPolicy Bypass -File check.ps1 {input_q}
-node check.js {input_q} {output_dir_q}
-mytool.exe {input_q} {output_dir_q}
+\\A-PC\LocalComputeShare
 ```
 
-주의: B/C 컴퓨터에서도 같은 프로그램이 설치되어 있어야 합니다. 예를 들어 Python 작업이면 B/C에도 Python과 필요한 패키지가 있어야 합니다.
+Recommended app paths:
 
-## 아직 알아야 할 점
+```text
+Input folder  = \\A-PC\LocalComputeShare\input
+Output folder = \\A-PC\LocalComputeShare\outputs
+Logs folder   = \\A-PC\LocalComputeShare\logs
+```
 
-`기기 연결 허용`과 `번호로 기기 추가`는 PC 주소를 쉽게 등록하기 위한 기능입니다. 실제 원격 작업 실행은 현재 SSH 방식도 함께 사용합니다. 따라서 원격 PC에서 작업을 돌리려면 Windows OpenSSH 또는 이후 Worker Mode가 필요합니다.
+## Worker / PC Requirements
 
-현재 앱은 “비개발자용 메뉴 구조”로 정리 중이며, 다음 단계는 SSH 없이 앱끼리 바로 작업을 주고받는 Worker Mode입니다.
+| Requirement | Why |
+|---|---|
+| Same Wi-Fi, LAN, Tailscale, or ZeroTier | PCs must reach each other |
+| SSH available for current worker mode | Remote commands currently use SSH |
+| Shared folder accessible from B/C | Workers need to read input and write output |
+| Same tools installed on every worker | Python/Node/Excel/etc. must exist where command runs |
+
+## Supported Command Types
+
+Advanced users can run almost anything that works in Windows command line:
+
+| Type | Example |
+|---|---|
+| Python | `python check_excel.py {input_q} {output_dir_q}` |
+| PowerShell | `powershell -ExecutionPolicy Bypass -File check.ps1 {input_q}` |
+| Batch/CMD | `check_excel.bat {input_q} {output_dir_q}` |
+| EXE | `mytool.exe {input_q} {output_dir_q}` |
+| Node.js | `node check.js {input_q} {output_dir_q}` |
+
+Template variables:
+
+| Variable | Meaning |
+|---|---|
+| `{input}` | Input file path |
+| `{input_q}` | Quoted input file path |
+| `{input_name}` | File name |
+| `{input_stem}` | File name without extension |
+| `{output_dir}` | Output folder |
+| `{output_dir_q}` | Quoted output folder |
+| `{job_id}` | Stable job ID |
+| `{worker}` | Worker name |
+
+## MCP Configuration
+
+The local MCP server is already compatible with Codex/Cursor style configs.
+
+Recommended ASCII-safe path:
+
+```text
+C:\Users\rje28\local-compute-mcp
+```
+
+Example:
+
+```json
+{
+  "mcpServers": {
+    "local-compute": {
+      "command": "python",
+      "args": [
+        "-m",
+        "local_compute_mcp.server",
+        "--config",
+        "C:/Users/rje28/local-compute-mcp/workers.yaml"
+      ],
+      "env": {
+        "PYTHONPATH": "C:/Users/rje28/local-compute-mcp/src"
+      }
+    }
+  }
+}
+```
+
+Available MCP tools:
+
+| Tool | Purpose |
+|---|---|
+| `list_workers` | List enabled PCs |
+| `test_workers` | Test local/SSH workers |
+| `submit_jobs` | Run distributed file jobs |
+| `retry_failed` | Retry failed jobs from `joblog.tsv` |
+
+## Planned Sound Hub Feature
+
+The user requested:
+
+> Hear sound from all PCs through one speaker, with per-PC volume controls.
+
+This is possible, but it is a different module from file processing.
+
+Recommended design:
+
+| Menu | Purpose |
+|---|---|
+| Sound Hub | Main audio feature |
+| Use this PC as speaker hub | A PC receives all audio |
+| Send this PC's sound | B/C sends system sound to A |
+| Sound Mixer | Per-PC volume, mute, activity meter |
+| Output Speaker | Select A PC speaker |
+| Remote Audio | Tailscale/ZeroTier/SonoBus-style guidance |
+
+Recommended implementation path:
+
+| Option | Recommendation | Notes |
+|---|---:|---|
+| Use VBAN/Voicemeeter integration | High | Mature Windows audio-over-network path |
+| Use Scream virtual network sound card | Medium | Good for LAN audio capture |
+| Use SonoBus | Medium | Better for internet/remote audio, more musician-style |
+| Build custom audio driver | Low | Too heavy for MVP |
+
+## Remote Screen Sharing / Remote Control
+
+Remote screen sharing/control is **possible**, but it is not the same feature as file processing or audio mixing.
+
+| Feature | Difficulty | Recommended Approach |
+|---|---:|---|
+| View remote screen | Medium | Integrate existing VNC/RustDesk/Parsec/AnyDesk style tool |
+| Control remote mouse/keyboard | High | Needs permissions, security, input injection |
+| Build custom remote desktop engine | Very high | Not recommended for this app MVP |
+| Launch existing remote-control tool from this app | Reasonable | Best path if needed |
+
+Short answer:
+
+```text
+It is not impossible.
+But building safe, smooth remote control directly into this app is a large separate project.
+For MVP, integrate or launch an existing remote desktop tool instead.
+```
+
+## Known Limitations
+
+| Limitation | Details |
+|---|---|
+| Installer EXE is unsigned | Some Windows Application Control policies can block it |
+| Pairing code is prototype | It helps register IP/name, but actual remote execution still uses SSH |
+| Worker mode currently uses SSH | Future worker agent mode could remove SSH requirement |
+| Same-Wi-Fi discovery is best-effort | Firewalls may hide PCs from ping/ARP |
+| Non-developer UI still needs polish | Current layout is simpler, but not fully production-grade |
+
+## Best Next Steps
+
+| Priority | Task |
+|---:|---|
+| 1 | Add Worker Agent mode so B/C can connect without SSH |
+| 2 | Improve UI visual design and first-run wizard |
+| 3 | Add Sound Hub module using VBAN/Scream/SonoBus integration |
+| 4 | Add code signing or MSI/Inno Setup installer |
+| 5 | Add optional remote desktop launcher integration |
