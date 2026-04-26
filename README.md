@@ -26,7 +26,7 @@ MCP Connection
 | File processing engine | Done | Splits independent files across workers |
 | Retry failed files | Done | Uses `logs/joblog.tsv` |
 | MCP server | Done | Tools for list/test/run/retry |
-| Sound hub | Not built | Planned feature |
+| Sound hub | Prototype | App menu, master soundbar, per-PC mixer profile, tool checks |
 | Remote screen sharing/control | Not built | Possible, but separate heavy feature |
 
 ## Important Concept
@@ -209,24 +209,34 @@ Available MCP tools:
 | `submit_jobs` | Run distributed file jobs |
 | `retry_failed` | Retry failed jobs from `joblog.tsv` |
 
-## Planned Sound Hub Feature
+## Sound Hub Prototype
 
 The user requested:
 
 > Hear sound from all PCs through one speaker, with per-PC volume controls.
 
-This is possible, but it is a different module from file processing.
+This is possible, but the first implementation is a **Sound Hub control screen**, not a full custom audio driver.
 
-Recommended design:
+Implemented now:
 
 | Menu | Purpose |
 |---|---|
-| Sound Hub | Main audio feature |
-| Use this PC as speaker hub | A PC receives all audio |
-| Send this PC's sound | B/C sends system sound to A |
-| Sound Mixer | Per-PC volume, mute, activity meter |
-| Output Speaker | Select A PC speaker |
-| Remote Audio | Tailscale/ZeroTier/SonoBus-style guidance |
+| Sound Hub | Main audio feature screen |
+| Mode | Select whether this PC receives audio or sends audio |
+| Soundbar | Master volume profile and speaker test beep |
+| Per-PC mixer profile | Per-PC volume sliders and mute toggles |
+| Check Audio Tools | Checks for Voicemeeter/VBAN, Scream, and SonoBus executables |
+| Open Windows Volume Mixer | Opens native Windows volume mixer |
+| Open VBAN/Scream/SonoBus | Opens official setup pages |
+
+Not implemented yet:
+
+| Missing Part | Why |
+|---|---|
+| Real system-audio capture | Needs a virtual audio device or audio-over-network tool |
+| Real network audio streaming | Should use VBAN, Scream, or SonoBus first |
+| Applying per-PC volume remotely | Needs worker agent/audio engine integration |
+| Live activity meter | Needs real audio stream level data |
 
 Recommended implementation path:
 
