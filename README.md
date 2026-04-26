@@ -9,6 +9,8 @@ Home
 Device Registration
 Shared Folder Management
 File Processing
+Sound Hub
+AI Remote Assist
 Running Log
 Error Log
 MCP Connection
@@ -28,7 +30,8 @@ MCP Connection
 | Retry failed files | Done | Uses `logs/joblog.tsv` |
 | MCP server | Done | Tools for list/test/run/retry |
 | Sound hub | Prototype | App menu, master soundbar, per-PC mixer profile, tool checks |
-| Remote screen sharing/control | Not built | Possible, but separate heavy feature |
+| AI remote assist | Prototype | User-approved screenshot sharing with 6-digit code |
+| Remote screen control | Planned | Needs explicit permission gates and audit log before enabling |
 
 ## Important Concept
 
@@ -54,6 +57,7 @@ Each PC runs its own task, then writes results back to the shared folder.
 | `src/local_compute_mcp/config.py` | `workers.yaml` parser/writer |
 | `src/local_compute_mcp/discovery.py` | Same-Wi-Fi/LAN PC discovery |
 | `src/local_compute_mcp/pairing.py` | 6-digit pairing-code prototype |
+| `src/local_compute_mcp/remote_assist.py` | User-approved screenshot-sharing server |
 | `src/local_compute_mcp/server.py` | MCP stdio server |
 | `src/local_compute_mcp/cli.py` | CLI wrapper |
 | `workers.yaml` | Registered PCs/workers |
@@ -111,6 +115,37 @@ python -m py_compile src\local_compute_mcp\gui.py src\local_compute_mcp\runner.p
 | 6 | File Processing | Click `Start file processing` | Work is split across PCs |
 | 7 | Running Log | View job log | Shows progress/results |
 | 8 | Error Log | View failed jobs | Shows only failures |
+| 9 | AI Remote Assist | Click `Allow AI remote assist` | Shows code and screenshot URL |
+
+## AI Remote Assist
+
+Goal:
+
+```text
+Main PC / AI can inspect another approved PC when software behaves strangely.
+```
+
+Current safe prototype:
+
+| Feature | Status | How it works |
+|---|---:|---|
+| User permission button | Done | The user must click `AI Remote Assist` -> allow |
+| 6-digit code | Done | Screenshot access requires the generated code |
+| Screenshot sharing | Done | Other PCs can open `/screenshot.png?code=...` on the same network |
+| Local screenshot save | Done | Saves `outputs/assist-screenshot.png` |
+| Open Excel button | Prototype | Opens local Excel on the PC running the app |
+| Mouse/keyboard control | Planned | Not enabled yet for safety |
+| Remote Excel/file operations | Planned | Should be implemented as permission-specific worker actions |
+
+Recommended next architecture:
+
+| Permission | Example Action | Safety Rule |
+|---|---|---|
+| View screen | Take screenshot | User must approve and code must match |
+| Open app | Open Excel / browser | Show confirmation before launching |
+| File access | Open selected folder/file | Restrict to user-selected folder |
+| Control input | Click/type hotkeys | Time-limited session and visible stop button |
+| AI/Codex assist | Run approved command | Log every command and result |
 
 ## Shared Folder Design
 

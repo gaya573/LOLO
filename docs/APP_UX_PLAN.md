@@ -21,6 +21,7 @@ This document is written so another AI, planner, or developer can continue the p
 | Folder | Folder | Create/manage A-PC shared folder | Make this PC storage |
 | Process | Lightning | Process input files | Start processing |
 | Sound | Speaker | Soundbar/mixer profile | Test speaker / Check tools |
+| AI Assist | AI | Let trusted AI/main PC inspect this PC | Allow AI remote assist |
 | Log | Clipboard | See running history | Refresh |
 | Error | Warning | See failed jobs | Retry failed |
 | MCP | Plug | AI tool connection info | Copy/use config |
@@ -63,6 +64,30 @@ flowchart TD
     F --> I["Future: live level meter"]
 ```
 
+## AI Remote Assist Flow
+
+```mermaid
+flowchart TD
+    A["Open AI Remote Assist"] --> B["Click allow"]
+    B --> C["App shows 6-digit code and screenshot URL"]
+    C --> D["Main PC / AI opens URL with code"]
+    D --> E["Approved PC returns current screenshot"]
+    E --> F{"Need action?"}
+    F -->|Yes| G["Future: request specific permission"]
+    G --> H["User approves open Excel / click / type / command"]
+    F -->|No| I["Stop by closing app"]
+```
+
+## AI Remote Assist Permission Model
+
+| Permission | Current Status | Product Rule |
+|---|---:|---|
+| View current screen | Prototype | Only after user clicks allow and code matches |
+| Save screenshot | Done | Saves locally to output folder |
+| Open Excel | Prototype | Local-only launcher button |
+| Remote click/type | Planned | Must be time-limited and user-visible |
+| Run command | Planned | Must log command, target PC, output, and failure |
+
 ## Implementation Notes
 
 | Concern | Current Implementation | Next Step |
@@ -70,7 +95,8 @@ flowchart TD
 | Icons | Built-in Segoe UI Emoji / symbol text | Replace with image/icon assets if packaging allows |
 | Layout | Tkinter custom card shell | Can later migrate to Qt/Flet/Electron |
 | Sound Hub | Mixer profile UI, tool checks | Add VBAN/Scream/SonoBus automation |
-| Remote control | Documented only | Integrate RustDesk/VNC launcher rather than custom engine |
+| AI Remote Assist | User-approved screenshot server | Add per-action remote agent permissions |
+| Remote control | Planned only | Integrate RustDesk/VNC launcher or signed local agent rather than unsafe raw control |
 | Worker execution | SSH-based | Add agent mode for non-developer pairing |
 
 ## Copy Guidelines

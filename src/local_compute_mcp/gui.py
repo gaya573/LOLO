@@ -12,10 +12,12 @@ from pathlib import Path
 from tkinter import filedialog, messagebox
 import tkinter as tk
 from tkinter import ttk
+from PIL import ImageGrab
 
 from .config import Worker, load_all_workers, load_workers, save_workers
 from .discovery import NetworkDevice, discover_same_wifi
 from .pairing import PairingServer, find_pairing_code
+from .remote_assist import RemoteAssistServer
 from .runner import discover_jobs, retry_failed, run_jobs, test_worker
 
 
@@ -54,6 +56,7 @@ class LocalComputeApp(tk.Tk):
         self.pages: dict[str, tk.Frame] = {}
         self.nav_buttons: dict[str, tk.Button] = {}
         self.pairing_server: PairingServer | None = None
+        self.remote_assist_server: RemoteAssistServer | None = None
 
         self.folder_var = tk.StringVar(value=str(APP_DIR / "samples" / "input"))
         self.output_var = tk.StringVar(value=str(APP_DIR / "outputs"))
@@ -67,6 +70,8 @@ class LocalComputeApp(tk.Tk):
         self.sound_mode = tk.StringVar(value="This PC receives audio")
         self.sound_status_var = tk.StringVar(value="아직 실제 오디오 송수신은 연결 전입니다. 먼저 오디오 도구를 확인하세요.")
         self.sound_rows: dict[str, dict[str, object]] = {}
+        self.assist_status_var = tk.StringVar(value="AI 원격지원은 사용자가 허용한 동안만 스크린샷을 제공합니다.")
+        self.assist_url_var = tk.StringVar(value="")
 
         self._style()
         self._build()
@@ -74,6 +79,7 @@ class LocalComputeApp(tk.Tk):
         self._load_sound_config()
         self._show("home")
         self._poll_queue()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _style(self) -> None:
         style = ttk.Style()
@@ -124,6 +130,24 @@ class LocalComputeApp(tk.Tk):
             button.pack(fill="x", padx=10, pady=3)
             self.nav_buttons[key] = button
 
+        button = tk.Button(
+            nav,
+            text="AI  AI 원격지원",
+            anchor="w",
+            font=("Segoe UI", 12, "bold"),
+            bg="#191f2b",
+            fg="#e5e7eb",
+            activebackground="#273244",
+            activeforeground="white",
+            relief="flat",
+            bd=0,
+            padx=22,
+            pady=13,
+            command=lambda: self._show("assist"),
+        )
+        button.pack(fill="x", padx=10, pady=3)
+        self.nav_buttons["assist"] = button
+
         tk.Label(
             nav,
             text="처음이면 홈에서 시작하세요.\n한 화면에 한 기능만 담았습니다.",
@@ -144,6 +168,7 @@ class LocalComputeApp(tk.Tk):
             "shared": self._shared_page(),
             "process": self._process_page(),
             "sound": self._sound_page(),
+            "assist": self._assist_page(),
             "running": self._running_page(),
             "errors": self._errors_page(),
             "mcp": self._mcp_page(),
@@ -347,6 +372,52 @@ class LocalComputeApp(tk.Tk):
         self.sound_mixer_frame = mixer
         self._refresh_sound_mixer()
         tk.Label(page, textvariable=self.sound_status_var, bg=BG, fg=MUTED, font=("Segoe UI", 10), wraplength=820, justify="left").grid(row=5, column=0, sticky="w", pady=(8, 0))
+        return page
+
+    def _assist_page(self) -> tk.Frame:
+        page = self._page("AI 원격지원", "상대 PC에서 허용한 화면을 확인하고, 필요한 작업 권한을 단계별로 받을 준비 화면입니다.", "AI")
+        page.rowconfigure(3, weight=1)
+        page.columnconfigure(0, weight=1)
+
+        start = self._card(page, 1, "연결 허용")
+        start.columnconfigure(1, weight=1)
+        tk.Label(start, text="1", bg=BRAND, fg="white", font=("Segoe UI", 16, "bold"), width=3, height=1).grid(row=0, column=0, rowspan=2, sticky="nw", padx=(0, 14))
+        tk.Label(start, text="이 PC 화면 확인을 허용", bg=SURFACE, fg=INK, font=("Segoe UI", 16, "bold")).grid(row=0, column=1, sticky="w")
+        tk.Label(
+            start,
+            text="버튼을 누르면 6자리 코드와 스크린샷 주소가 만들어집니다. 코드를 아는 사람만 현재 화면 이미지를 볼 수 있습니다.",
+            bg=SURFACE,
+            fg=MUTED,
+            font=("Segoe UI", 10),
+            wraplength=760,
+            justify="left",
+        ).grid(row=1, column=1, sticky="w", pady=(4, 0))
+        self._button(start, "AI 원격지원 허용", self._start_remote_assist, primary=True).grid(row=0, column=2, rowspan=2, sticky="e", padx=(12, 0))
+
+        tools = self._card(page, 2, "도구")
+        for i in range(4):
+            tools.columnconfigure(i, weight=1)
+        self._button(tools, "내 화면 스크린샷 저장", self._save_local_screenshot, primary=True).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        self._button(tools, "스크린샷 주소 복사", self._copy_assist_url).grid(row=0, column=1, sticky="ew", padx=6)
+        self._button(tools, "처리 폴더 열기", self._open_input_folder).grid(row=0, column=2, sticky="ew", padx=6)
+        self._button(tools, "엑셀 열기", self._open_excel).grid(row=0, column=3, sticky="ew", padx=(6, 0))
+
+        status = self._card(page, 3, "상태")
+        status.grid(sticky="nsew")
+        status.columnconfigure(0, weight=1)
+        tk.Label(status, textvariable=self.assist_status_var, bg=SURFACE, fg=INK, font=("Segoe UI", 12, "bold"), wraplength=860, justify="left").grid(row=0, column=0, sticky="w")
+        url_entry = self._entry(status, self.assist_url_var)
+        url_entry.grid(row=1, column=0, sticky="ew", pady=(12, 0))
+        url_entry.configure(state="readonly")
+        tk.Label(
+            status,
+            text="현재 버전은 안전을 위해 화면 스크린샷 공유부터 제공합니다. 마우스/키보드 조종, 엑셀 파일 열기, 앱 실행은 다음 단계에서 권한별 버튼과 로그를 붙여 확장합니다.",
+            bg=SURFACE,
+            fg=MUTED,
+            font=("Segoe UI", 10),
+            wraplength=860,
+            justify="left",
+        ).grid(row=2, column=0, sticky="w", pady=(14, 0))
         return page
 
     def _running_page(self) -> tk.Frame:
@@ -601,6 +672,56 @@ class LocalComputeApp(tk.Tk):
                 self.error_text.insert("end", row["stderr"] + "\n")
             self.error_text.insert("end", "\n")
 
+    def _start_remote_assist(self) -> None:
+        try:
+            if self.remote_assist_server is None:
+                self.remote_assist_server = RemoteAssistServer()
+            info = self.remote_assist_server.start()
+        except Exception as exc:
+            messagebox.showerror("AI 원격지원", f"원격지원 서버를 시작하지 못했습니다.\n{exc}")
+            return
+
+        self.assist_url_var.set(info.screenshot_url)
+        self.assist_status_var.set(
+            f"허용됨: 이 PC({info.name}) 화면 확인 코드 {info.code}. 같은 Wi-Fi PC에서 아래 주소를 열면 현재 화면 스크린샷을 볼 수 있습니다."
+        )
+        self.clipboard_clear()
+        self.clipboard_append(info.screenshot_url)
+        self._write(f"AI 원격지원 허용: {info.screenshot_url}")
+        messagebox.showinfo("AI 원격지원 허용", f"연결 코드: {info.code}\n\n스크린샷 주소를 클립보드에 복사했습니다.")
+
+    def _save_local_screenshot(self) -> None:
+        try:
+            output_dir = Path(self.output_var.get())
+            output_dir.mkdir(parents=True, exist_ok=True)
+            path = output_dir / "assist-screenshot.png"
+            ImageGrab.grab().save(path)
+        except Exception as exc:
+            messagebox.showerror("스크린샷 저장", str(exc))
+            return
+        self.assist_status_var.set(f"스크린샷 저장 완료: {path}")
+        self._write(f"스크린샷 저장: {path}")
+
+    def _copy_assist_url(self) -> None:
+        url = self.assist_url_var.get().strip()
+        if not url:
+            messagebox.showinfo("AI 원격지원", "먼저 'AI 원격지원 허용'을 눌러 주소를 만들어주세요.")
+            return
+        self.clipboard_clear()
+        self.clipboard_append(url)
+        messagebox.showinfo("AI 원격지원", "스크린샷 주소를 복사했습니다.")
+
+    def _open_input_folder(self) -> None:
+        folder = Path(self.folder_var.get())
+        folder.mkdir(parents=True, exist_ok=True)
+        subprocess.Popen(["explorer", str(folder)])
+
+    def _open_excel(self) -> None:
+        try:
+            subprocess.Popen(["excel.exe"])
+        except OSError:
+            messagebox.showerror("엑셀 열기", "Excel을 찾지 못했습니다. 이 PC에 Microsoft Excel이 설치되어 있는지 확인해주세요.")
+
     def _load_sound_config(self) -> None:
         if not SOUND_CONFIG_PATH.exists():
             return
@@ -677,6 +798,13 @@ class LocalComputeApp(tk.Tk):
     def _where(executable: str) -> bool:
         completed = subprocess.run(["where", executable], capture_output=True, text=True, shell=True)
         return completed.returncode == 0
+
+    def _on_close(self) -> None:
+        if self.remote_assist_server is not None:
+            self.remote_assist_server.stop()
+        if self.pairing_server is not None:
+            self.pairing_server.stop()
+        self.destroy()
 
     def _run_background(self, title: str, fn) -> None:
         self._show("running")
