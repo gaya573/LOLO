@@ -20,6 +20,7 @@ MCP Connection
 |---|---:|---|
 | Windows GUI app | Done | Tkinter-based desktop app |
 | Setup wizard | Done | `dist/LocalComputeMCP-Setup.exe` |
+| Mobile-style UX shell | Done | Large cards, icon nav, one-purpose screens |
 | Device registration menu | Done | Same-Wi-Fi scan, manual add, pairing-code flow |
 | Pairing code flow | Prototype | Shows 6-digit code and discovers it on LAN |
 | Shared folder setup | Done | Creates `C:\LocalComputeShare` on A/main PC |
@@ -48,6 +49,7 @@ Each PC runs its own task, then writes results back to the shared folder.
 | Path | Purpose |
 |---|---|
 | `src/local_compute_mcp/gui.py` | Main non-developer GUI app |
+| `docs/APP_UX_PLAN.md` | Product UX plan, screen map, user flowcharts |
 | `src/local_compute_mcp/runner.py` | Distributed job runner |
 | `src/local_compute_mcp/config.py` | `workers.yaml` parser/writer |
 | `src/local_compute_mcp/discovery.py` | Same-Wi-Fi/LAN PC discovery |

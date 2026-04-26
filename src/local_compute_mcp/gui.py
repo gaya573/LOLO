@@ -9,8 +9,9 @@ import threading
 import webbrowser
 import winsound
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox
 import tkinter as tk
+from tkinter import ttk
 
 from .config import Worker, load_all_workers, load_workers, save_workers
 from .discovery import NetworkDevice, discover_same_wifi
@@ -28,17 +29,30 @@ APP_DIR = app_dir()
 CONFIG_PATH = APP_DIR / "workers.yaml"
 SOUND_CONFIG_PATH = APP_DIR / "sound_hub.json"
 
+BG = "#f6f5f2"
+SURFACE = "#ffffff"
+INK = "#202124"
+MUTED = "#6b7280"
+LINE = "#e5e7eb"
+BRAND = "#ff6f0f"
+BRAND_DARK = "#e85f00"
+GREEN = "#1f9d55"
+BLUE = "#2563eb"
+RED = "#dc2626"
+
 
 class LocalComputeApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("Local Compute")
-        self.geometry("1140x760")
-        self.minsize(1000, 680)
+        self.geometry("1180x780")
+        self.minsize(1040, 700)
+        self.configure(bg=BG)
 
         self.queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self.workers: list[Worker] = []
-        self.pages: dict[str, ttk.Frame] = {}
+        self.pages: dict[str, tk.Frame] = {}
+        self.nav_buttons: dict[str, tk.Button] = {}
         self.pairing_server: PairingServer | None = None
 
         self.folder_var = tk.StringVar(value=str(APP_DIR / "samples" / "input"))
@@ -51,114 +65,191 @@ class LocalComputeApp(tk.Tk):
 
         self.master_volume = tk.IntVar(value=80)
         self.sound_mode = tk.StringVar(value="This PC receives audio")
-        self.sound_status_var = tk.StringVar(value="Sound Hub is ready. Audio streaming tool integration is the next step.")
+        self.sound_status_var = tk.StringVar(value="아직 실제 오디오 송수신은 연결 전입니다. 먼저 오디오 도구를 확인하세요.")
         self.sound_rows: dict[str, dict[str, object]] = {}
 
         self._style()
         self._build()
         self._load_workers()
         self._load_sound_config()
-        self._show("devices")
+        self._show("home")
         self._poll_queue()
 
     def _style(self) -> None:
         style = ttk.Style()
         style.theme_use("clam")
-        style.configure("Side.TFrame", background="#222831")
-        style.configure("SideTitle.TLabel", background="#222831", foreground="white", font=("Segoe UI", 16, "bold"))
-        style.configure("SideText.TLabel", background="#222831", foreground="#c8d0dc", font=("Segoe UI", 9))
-        style.configure("Menu.TButton", anchor="w", padding=(14, 11), font=("Segoe UI", 10))
-        style.configure("Title.TLabel", font=("Segoe UI", 20, "bold"))
-        style.configure("Sub.TLabel", foreground="#5e6875", font=("Segoe UI", 10))
-        style.configure("Accent.TButton", padding=(14, 9), font=("Segoe UI", 10, "bold"))
-        style.configure("Treeview", rowheight=30)
+        style.configure("Treeview", rowheight=34, background=SURFACE, fieldbackground=SURFACE, bordercolor=LINE)
+        style.configure("Treeview.Heading", font=("Segoe UI", 10, "bold"), background="#f3f4f6")
+        style.configure("Horizontal.TScale", background=SURFACE)
+        style.configure("TCombobox", padding=8)
 
     def _build(self) -> None:
-        root = ttk.Frame(self)
-        root.pack(fill="both", expand=True)
-        root.columnconfigure(1, weight=1)
-        root.rowconfigure(0, weight=1)
+        shell = tk.Frame(self, bg=BG)
+        shell.pack(fill="both", expand=True)
+        shell.columnconfigure(1, weight=1)
+        shell.rowconfigure(0, weight=1)
 
-        side = ttk.Frame(root, style="Side.TFrame", padding=(16, 18))
-        side.grid(row=0, column=0, sticky="ns")
-        side.grid_propagate(False)
-        side.configure(width=230)
+        nav = tk.Frame(shell, bg="#191f2b", width=238)
+        nav.grid(row=0, column=0, sticky="ns")
+        nav.grid_propagate(False)
 
-        ttk.Label(side, text="Local Compute", style="SideTitle.TLabel").pack(anchor="w")
-        ttk.Label(side, text="Simple multi-PC tools", style="SideText.TLabel").pack(anchor="w", pady=(2, 18))
+        tk.Label(nav, text="🥕 Local", bg="#191f2b", fg="white", font=("Segoe UI", 20, "bold")).pack(anchor="w", padx=22, pady=(24, 2))
+        tk.Label(nav, text="여러 PC를 쉽게 연결", bg="#191f2b", fg="#cbd5e1", font=("Segoe UI", 10)).pack(anchor="w", padx=24, pady=(0, 22))
 
-        for key, label in [
-            ("devices", "Device Registration"),
-            ("shared", "Shared Folders"),
-            ("process", "File Processing"),
-            ("sound", "Sound Hub"),
-            ("running", "Running Log"),
-            ("errors", "Error Log"),
-            ("mcp", "MCP Connection"),
+        for key, icon, label in [
+            ("home", "🏠", "홈"),
+            ("devices", "🔗", "기기등록"),
+            ("shared", "📁", "공유폴더"),
+            ("process", "⚡", "파일처리"),
+            ("sound", "🔊", "사운드바"),
+            ("running", "📋", "실행로그"),
+            ("errors", "⚠️", "에러로그"),
+            ("mcp", "🔌", "MCP"),
         ]:
-            ttk.Button(side, text=label, style="Menu.TButton", command=lambda k=key: self._show(k)).pack(fill="x", pady=4)
+            button = tk.Button(
+                nav,
+                text=f"{icon}  {label}",
+                anchor="w",
+                font=("Segoe UI", 12, "bold"),
+                bg="#191f2b",
+                fg="#e5e7eb",
+                activebackground="#273244",
+                activeforeground="white",
+                relief="flat",
+                bd=0,
+                padx=22,
+                pady=13,
+                command=lambda name=key: self._show(name),
+            )
+            button.pack(fill="x", padx=10, pady=3)
+            self.nav_buttons[key] = button
 
-        ttk.Label(side, text="Use menus from top to bottom for the easiest setup.", style="SideText.TLabel", wraplength=190).pack(side="bottom", anchor="w")
+        tk.Label(
+            nav,
+            text="처음이면 홈에서 시작하세요.\n한 화면에 한 기능만 담았습니다.",
+            bg="#191f2b",
+            fg="#94a3b8",
+            font=("Segoe UI", 9),
+            justify="left",
+        ).pack(side="bottom", anchor="w", padx=22, pady=20)
 
-        self.content = ttk.Frame(root, padding=24)
+        self.content = tk.Frame(shell, bg=BG)
         self.content.grid(row=0, column=1, sticky="nsew")
         self.content.columnconfigure(0, weight=1)
         self.content.rowconfigure(0, weight=1)
 
-        self.pages["devices"] = self._devices_page()
-        self.pages["shared"] = self._shared_page()
-        self.pages["process"] = self._process_page()
-        self.pages["sound"] = self._sound_page()
-        self.pages["running"] = self._running_page()
-        self.pages["errors"] = self._errors_page()
-        self.pages["mcp"] = self._mcp_page()
-
+        self.pages = {
+            "home": self._home_page(),
+            "devices": self._devices_page(),
+            "shared": self._shared_page(),
+            "process": self._process_page(),
+            "sound": self._sound_page(),
+            "running": self._running_page(),
+            "errors": self._errors_page(),
+            "mcp": self._mcp_page(),
+        }
         for page in self.pages.values():
             page.grid(row=0, column=0, sticky="nsew")
 
-    def _page(self, title: str, text: str) -> ttk.Frame:
-        page = ttk.Frame(self.content)
+    def _page(self, title: str, subtitle: str, icon: str) -> tk.Frame:
+        page = tk.Frame(self.content, bg=BG, padx=28, pady=24)
         page.columnconfigure(0, weight=1)
-        ttk.Label(page, text=title, style="Title.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Label(page, text=text, style="Sub.TLabel", wraplength=820).grid(row=1, column=0, sticky="w", pady=(5, 20))
+        header = tk.Frame(page, bg=BG)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 18))
+        tk.Label(header, text=icon, bg=BG, fg=INK, font=("Segoe UI Emoji", 28)).pack(side="left", padx=(0, 12))
+        text = tk.Frame(header, bg=BG)
+        text.pack(side="left", fill="x", expand=True)
+        tk.Label(text, text=title, bg=BG, fg=INK, font=("Segoe UI", 24, "bold")).pack(anchor="w")
+        tk.Label(text, text=subtitle, bg=BG, fg=MUTED, font=("Segoe UI", 11)).pack(anchor="w", pady=(3, 0))
         return page
 
-    def _devices_page(self) -> ttk.Frame:
-        page = self._page("Device Registration", "Register PCs that can help with file processing or future sound sharing.")
-        page.rowconfigure(4, weight=1)
+    def _card(self, parent: tk.Misc, row: int, title: str = "", column: int = 0, colspan: int = 1, pady: int = 8) -> tk.Frame:
+        card = tk.Frame(parent, bg=SURFACE, highlightthickness=1, highlightbackground=LINE, padx=18, pady=16)
+        card.grid(row=row, column=column, columnspan=colspan, sticky="nsew", pady=pady, padx=0)
+        return card
 
-        top = ttk.Frame(page)
-        top.grid(row=2, column=0, sticky="ew")
+    def _button(self, parent: tk.Misc, text: str, command, primary: bool = False, danger: bool = False) -> tk.Button:
+        bg = BRAND if primary else RED if danger else "#eef2f7"
+        fg = "white" if primary or danger else INK
+        active = BRAND_DARK if primary else "#e2e8f0"
+        return tk.Button(
+            parent,
+            text=text,
+            command=command,
+            bg=bg,
+            fg=fg,
+            activebackground=active,
+            activeforeground=fg,
+            relief="flat",
+            bd=0,
+            padx=16,
+            pady=11,
+            font=("Segoe UI", 11, "bold"),
+            cursor="hand2",
+        )
+
+    def _entry(self, parent: tk.Misc, variable: tk.StringVar) -> tk.Entry:
+        return tk.Entry(parent, textvariable=variable, font=("Segoe UI", 11), relief="solid", bd=1)
+
+    def _home_page(self) -> tk.Frame:
+        page = self._page("오늘 할 일", "처음 쓰는 분도 순서대로 누르면 됩니다.", "🏠")
+        page.columnconfigure(0, weight=1)
+        page.columnconfigure(1, weight=1)
+
+        steps = [
+            ("🔗", "1. 기기 연결", "같은 Wi-Fi PC를 찾거나 6자리 번호로 연결합니다.", "devices"),
+            ("📁", "2. 공유폴더 만들기", "A컴퓨터에 input / outputs / logs 폴더를 준비합니다.", "shared"),
+            ("⚡", "3. 파일 처리", "처리할 파일을 넣고 연결된 PC들이 나눠 처리합니다.", "process"),
+            ("🔊", "4. 사운드바", "여러 PC 소리를 한 스피커로 모으는 준비 화면입니다.", "sound"),
+        ]
+        for index, (icon, title, body, target) in enumerate(steps):
+            card = self._card(page, row=1 + index // 2, column=index % 2, pady=10)
+            card.grid_configure(padx=(0, 10) if index % 2 == 0 else (10, 0))
+            tk.Label(card, text=icon, bg=SURFACE, font=("Segoe UI Emoji", 26)).pack(anchor="w")
+            tk.Label(card, text=title, bg=SURFACE, fg=INK, font=("Segoe UI", 16, "bold")).pack(anchor="w", pady=(8, 2))
+            tk.Label(card, text=body, bg=SURFACE, fg=MUTED, font=("Segoe UI", 10), wraplength=360, justify="left").pack(anchor="w")
+            self._button(card, "열기", lambda key=target: self._show(key), primary=index == 0).pack(anchor="w", pady=(14, 0))
+        return page
+
+    def _devices_page(self) -> tk.Frame:
+        page = self._page("기기등록", "도와줄 PC를 등록합니다. 가장 쉬운 방법은 번호 연결입니다.", "🔗")
+        page.rowconfigure(3, weight=1)
+        page.columnconfigure(0, weight=1)
+
+        quick = self._card(page, 1, "빠른 연결")
         for i in range(4):
-            top.columnconfigure(i, weight=1)
-        ttk.Button(top, text="Allow Device Connection", style="Accent.TButton", command=self._allow_device_connection).grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        ttk.Button(top, text="Add by Number", command=self._add_by_code).grid(row=0, column=1, sticky="ew", padx=8)
-        ttk.Button(top, text="Find Same Wi-Fi PCs", command=self._open_discovery).grid(row=0, column=2, sticky="ew", padx=8)
-        ttk.Button(top, text="Test Selected", command=self._test_selected).grid(row=0, column=3, sticky="ew", padx=(8, 0))
+            quick.columnconfigure(i, weight=1)
+        self._button(quick, "내 기기 연결 허용", self._allow_device_connection, primary=True).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        self._button(quick, "번호로 추가", self._add_by_code).grid(row=0, column=1, sticky="ew", padx=6)
+        self._button(quick, "같은 Wi-Fi 찾기", self._open_discovery).grid(row=0, column=2, sticky="ew", padx=6)
+        self._button(quick, "연결 테스트", self._test_selected).grid(row=0, column=3, sticky="ew", padx=(6, 0))
 
-        middle = ttk.Frame(page)
-        middle.grid(row=3, column=0, sticky="ew", pady=(12, 12))
-        ttk.Button(middle, text="Manual Add", command=self._add_worker).pack(side="left")
-        ttk.Button(middle, text="Delete Selected", command=self._delete_worker).pack(side="left", padx=(8, 0))
-        ttk.Button(middle, text="Save", command=self._save_workers).pack(side="left", padx=(8, 0))
+        manage = tk.Frame(page, bg=BG)
+        manage.grid(row=2, column=0, sticky="ew", pady=(0, 6))
+        self._button(manage, "직접 추가", self._add_worker).pack(side="left")
+        self._button(manage, "저장", self._save_workers).pack(side="left", padx=8)
+        self._button(manage, "선택 삭제", self._delete_worker, danger=True).pack(side="left")
 
-        body = ttk.Frame(page)
-        body.grid(row=4, column=0, sticky="nsew")
+        body = tk.Frame(page, bg=BG)
+        body.grid(row=3, column=0, sticky="nsew")
         body.columnconfigure(0, weight=3)
         body.columnconfigure(1, weight=2)
         body.rowconfigure(0, weight=1)
 
-        self.tree = ttk.Treeview(body, columns=("name", "host", "jobs", "status"), show="headings", selectmode="browse")
-        for key, label, width in [("name", "Device Name", 160), ("host", "Address", 180), ("jobs", "Parallel Jobs", 100), ("status", "Status", 80)]:
+        list_card = self._card(body, 0, "연결된 기기")
+        list_card.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        list_card.rowconfigure(1, weight=1)
+        list_card.columnconfigure(0, weight=1)
+        self.tree = ttk.Treeview(list_card, columns=("name", "host", "jobs", "status"), show="headings", selectmode="browse")
+        for key, label, width in [("name", "기기 이름", 160), ("host", "주소", 190), ("jobs", "동시 처리", 90), ("status", "상태", 80)]:
             self.tree.heading(key, text=label)
             self.tree.column(key, width=width, anchor="w")
-        self.tree.grid(row=0, column=0, sticky="nsew", padx=(0, 16))
+        self.tree.pack(fill="both", expand=True)
         self.tree.bind("<<TreeviewSelect>>", lambda _e: self._show_selected())
 
-        form = ttk.LabelFrame(body, text="Selected Device", padding=10)
-        form.grid(row=0, column=1, sticky="nsew")
+        form = self._card(body, 0, "선택한 기기")
+        form.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
         form.columnconfigure(1, weight=1)
-
         self.name_var = tk.StringVar()
         self.host_var = tk.StringVar()
         self.user_var = tk.StringVar()
@@ -167,132 +258,121 @@ class LocalComputeApp(tk.Tk):
         self.enabled_var = tk.BooleanVar(value=True)
 
         for row, (label, var) in enumerate([
-            ("Device name", self.name_var),
-            ("Address", self.host_var),
-            ("Windows account", self.user_var),
-            ("Parallel jobs", self.jobs_var),
-            ("Work folder", self.workdir_var),
+            ("기기 이름", self.name_var),
+            ("주소", self.host_var),
+            ("윈도우 계정", self.user_var),
+            ("동시 처리 수", self.jobs_var),
+            ("작업 폴더", self.workdir_var),
         ]):
-            ttk.Label(form, text=label).grid(row=row, column=0, sticky="w", padx=10, pady=7)
-            ttk.Entry(form, textvariable=var).grid(row=row, column=1, sticky="ew", padx=10, pady=7)
-        ttk.Checkbutton(form, text="Enabled", variable=self.enabled_var).grid(row=5, column=1, sticky="w", padx=10, pady=7)
-        ttk.Button(form, text="Apply to Selected", style="Accent.TButton", command=self._apply_form).grid(row=6, column=1, sticky="ew", padx=10, pady=10)
+            tk.Label(form, text=label, bg=SURFACE, fg=MUTED, font=("Segoe UI", 10, "bold")).grid(row=row, column=0, sticky="w", pady=7)
+            self._entry(form, var).grid(row=row, column=1, sticky="ew", padx=(10, 0), pady=7)
+        tk.Checkbutton(form, text="사용", bg=SURFACE, variable=self.enabled_var, font=("Segoe UI", 10)).grid(row=5, column=1, sticky="w", pady=8)
+        self._button(form, "수정 내용 반영", self._apply_form, primary=True).grid(row=6, column=1, sticky="ew", pady=(8, 0))
         return page
 
-    def _shared_page(self) -> ttk.Frame:
-        page = self._page("Shared Folders", "Make PC A the shared storage PC. Other PCs read input files and write results here.")
-        card = ttk.LabelFrame(page, text="Shared folder on PC A", padding=10)
-        card.grid(row=2, column=0, sticky="ew")
-        card.columnconfigure(1, weight=1)
-        ttk.Label(card, text="Recommended folder").grid(row=0, column=0, sticky="w", padx=12, pady=8)
-        ttk.Label(card, text="C:\\LocalComputeShare").grid(row=0, column=1, sticky="w", padx=12, pady=8)
-        ttk.Label(card, text="Subfolders").grid(row=1, column=0, sticky="w", padx=12, pady=8)
-        ttk.Label(card, text="input / outputs / logs").grid(row=1, column=1, sticky="w", padx=12, pady=8)
-        ttk.Button(card, text="Make This PC Shared Storage", style="Accent.TButton", command=self._run_share_setup).grid(row=2, column=0, columnspan=2, sticky="ew", padx=12, pady=12)
+    def _shared_page(self) -> tk.Frame:
+        page = self._page("공유폴더", "A컴퓨터를 공용 저장소로 만들고 파일 위치를 관리합니다.", "📁")
+        page.columnconfigure(0, weight=1)
+        card = self._card(page, 1, "A컴퓨터에 만들 폴더")
+        tk.Label(card, text="C:\\LocalComputeShare", bg=SURFACE, fg=BRAND, font=("Segoe UI", 22, "bold")).pack(anchor="w")
+        tk.Label(card, text="input / outputs / logs 폴더가 자동으로 준비됩니다.", bg=SURFACE, fg=MUTED, font=("Segoe UI", 11)).pack(anchor="w", pady=(6, 12))
+        self._button(card, "이 PC를 공용 저장소로 만들기", self._run_share_setup, primary=True).pack(anchor="w")
 
-        paths = ttk.LabelFrame(page, text="Folders used by this app", padding=10)
-        paths.grid(row=3, column=0, sticky="ew", pady=(20, 0))
+        paths = self._card(page, 2, "앱에서 사용할 폴더")
         paths.columnconfigure(1, weight=1)
-        self._path_row(paths, 0, "Input folder", self.folder_var)
-        self._path_row(paths, 1, "Output folder", self.output_var)
-        self._path_row(paths, 2, "Log folder", self.logs_var)
+        self._path_row(paths, 0, "처리할 파일", self.folder_var)
+        self._path_row(paths, 1, "결과 저장", self.output_var)
+        self._path_row(paths, 2, "로그 저장", self.logs_var)
         return page
 
-    def _process_page(self) -> ttk.Frame:
-        page = self._page("File Processing", "Choose a folder and start processing. Advanced command settings are hidden unless needed.")
-        form = ttk.LabelFrame(page, text="Processing setup", padding=10)
-        form.grid(row=2, column=0, sticky="ew")
+    def _process_page(self) -> tk.Frame:
+        page = self._page("파일처리", "처리할 파일을 고르고 시작하세요. 복잡한 설정은 숨겨두었습니다.", "⚡")
+        page.columnconfigure(0, weight=1)
+        form = self._card(page, 1, "처리 준비")
         form.columnconfigure(1, weight=1)
-
-        self._path_row(form, 0, "Input folder", self.folder_var)
-        ttk.Label(form, text="Job type").grid(row=1, column=0, sticky="w", padx=10, pady=7)
+        self._path_row(form, 0, "처리할 파일 폴더", self.folder_var)
+        tk.Label(form, text="처리 방식", bg=SURFACE, fg=MUTED, font=("Segoe UI", 10, "bold")).grid(row=1, column=0, sticky="w", pady=8)
         job_box = ttk.Combobox(form, textvariable=self.job_type_var, values=["Sample test", "Excel check", "Advanced command"], state="readonly")
-        job_box.grid(row=1, column=1, sticky="ew", padx=10, pady=7)
+        job_box.grid(row=1, column=1, sticky="ew", padx=(10, 0), pady=8)
         job_box.bind("<<ComboboxSelected>>", lambda _e: self._apply_job_type())
-        self._path_row(form, 2, "Output folder", self.output_var)
+        self._path_row(form, 2, "결과 저장 폴더", self.output_var)
 
-        self.advanced_frame = ttk.Frame(form)
+        self.advanced_frame = tk.Frame(form, bg=SURFACE)
         self.advanced_frame.grid(row=3, column=0, columnspan=3, sticky="ew")
         self.advanced_frame.columnconfigure(1, weight=1)
-        ttk.Label(self.advanced_frame, text="File pattern").grid(row=0, column=0, sticky="w", padx=10, pady=7)
-        ttk.Entry(self.advanced_frame, textvariable=self.pattern_var).grid(row=0, column=1, sticky="ew", padx=10, pady=7)
-        ttk.Label(self.advanced_frame, text="Command").grid(row=1, column=0, sticky="w", padx=10, pady=7)
-        ttk.Entry(self.advanced_frame, textvariable=self.command_var).grid(row=1, column=1, sticky="ew", padx=10, pady=7)
+        tk.Label(self.advanced_frame, text="파일 형식", bg=SURFACE, fg=MUTED, font=("Segoe UI", 10, "bold")).grid(row=0, column=0, sticky="w", pady=8)
+        self._entry(self.advanced_frame, self.pattern_var).grid(row=0, column=1, sticky="ew", padx=(10, 0), pady=8)
+        tk.Label(self.advanced_frame, text="고급 실행 방식", bg=SURFACE, fg=MUTED, font=("Segoe UI", 10, "bold")).grid(row=1, column=0, sticky="w", pady=8)
+        self._entry(self.advanced_frame, self.command_var).grid(row=1, column=1, sticky="ew", padx=(10, 0), pady=8)
+        tk.Checkbutton(form, text="고급 설정 보기", bg=SURFACE, variable=self.advanced_visible, command=self._toggle_advanced, font=("Segoe UI", 10)).grid(row=4, column=1, sticky="w", pady=8)
 
-        ttk.Checkbutton(form, text="Show advanced settings", variable=self.advanced_visible, command=self._toggle_advanced).grid(row=4, column=1, sticky="w", padx=10, pady=6)
-
-        actions = ttk.Frame(page)
-        actions.grid(row=3, column=0, sticky="ew", pady=(18, 0))
-        actions.columnconfigure(0, weight=1)
-        actions.columnconfigure(1, weight=1)
-        actions.columnconfigure(2, weight=1)
-        ttk.Button(actions, text="Check Device Connections", command=self._test_all).grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        ttk.Button(actions, text="Start File Processing", style="Accent.TButton", command=self._run_jobs).grid(row=0, column=1, sticky="ew", padx=8)
-        ttk.Button(actions, text="Retry Failed Files", command=self._retry_failed).grid(row=0, column=2, sticky="ew", padx=(8, 0))
-
+        actions = tk.Frame(page, bg=BG)
+        actions.grid(row=2, column=0, sticky="ew", pady=12)
+        for i in range(3):
+            actions.columnconfigure(i, weight=1)
+        self._button(actions, "기기 연결 확인", self._test_all).grid(row=0, column=0, sticky="ew", padx=(0, 8))
+        self._button(actions, "파일 처리 시작", self._run_jobs, primary=True).grid(row=0, column=1, sticky="ew", padx=8)
+        self._button(actions, "실패 파일 재처리", self._retry_failed).grid(row=0, column=2, sticky="ew", padx=(8, 0))
         self._toggle_advanced()
         return page
 
-    def _sound_page(self) -> ttk.Frame:
-        page = self._page("Sound Hub", "First step for listening to all PCs through one speaker. This screen manages the mixer profile and checks audio tools.")
-        page.rowconfigure(5, weight=1)
+    def _sound_page(self) -> tk.Frame:
+        page = self._page("사운드바", "여러 PC 소리를 한 스피커로 모으기 위한 준비 화면입니다.", "🔊")
+        page.rowconfigure(4, weight=1)
+        page.columnconfigure(0, weight=1)
 
-        mode = ttk.LabelFrame(page, text="Mode", padding=10)
-        mode.grid(row=2, column=0, sticky="ew")
-        mode.columnconfigure(1, weight=1)
-        ttk.Radiobutton(mode, text="This PC receives audio and plays through one speaker", variable=self.sound_mode, value="This PC receives audio").grid(row=0, column=0, sticky="w", padx=8, pady=4)
-        ttk.Radiobutton(mode, text="This PC sends its audio to another PC", variable=self.sound_mode, value="This PC sends audio").grid(row=1, column=0, sticky="w", padx=8, pady=4)
+        mode = self._card(page, 1, "이 PC 역할")
+        tk.Radiobutton(mode, text="이 PC가 모든 소리를 받아서 스피커로 재생", bg=SURFACE, variable=self.sound_mode, value="This PC receives audio", font=("Segoe UI", 11)).pack(anchor="w", pady=4)
+        tk.Radiobutton(mode, text="이 PC 소리를 다른 PC로 보내기", bg=SURFACE, variable=self.sound_mode, value="This PC sends audio", font=("Segoe UI", 11)).pack(anchor="w", pady=4)
 
-        master = ttk.LabelFrame(page, text="Soundbar", padding=10)
-        master.grid(row=3, column=0, sticky="ew", pady=(14, 0))
-        master.columnconfigure(1, weight=1)
-        ttk.Label(master, text="Master volume").grid(row=0, column=0, sticky="w", padx=8)
-        ttk.Scale(master, from_=0, to=100, variable=self.master_volume, orient="horizontal", command=lambda _v: self._save_sound_config()).grid(row=0, column=1, sticky="ew", padx=8)
-        ttk.Button(master, text="Test Speaker Beep", command=self._test_beep).grid(row=0, column=2, padx=8)
-        ttk.Button(master, text="Open Windows Volume Mixer", command=self._open_volume_mixer).grid(row=0, column=3, padx=8)
+        bar = self._card(page, 2, "전체 사운드바")
+        bar.columnconfigure(1, weight=1)
+        tk.Label(bar, text="전체 볼륨", bg=SURFACE, fg=MUTED, font=("Segoe UI", 11, "bold")).grid(row=0, column=0, sticky="w")
+        ttk.Scale(bar, from_=0, to=100, variable=self.master_volume, orient="horizontal", command=lambda _v: self._save_sound_config()).grid(row=0, column=1, sticky="ew", padx=12)
+        self._button(bar, "스피커 테스트", self._test_beep).grid(row=0, column=2, padx=6)
+        self._button(bar, "윈도우 볼륨", self._open_volume_mixer).grid(row=0, column=3, padx=(6, 0))
 
-        tools = ttk.Frame(page)
-        tools.grid(row=4, column=0, sticky="ew", pady=(14, 0))
-        for col in range(4):
-            tools.columnconfigure(col, weight=1)
-        ttk.Button(tools, text="Check Audio Tools", command=self._check_audio_tools).grid(row=0, column=0, sticky="ew", padx=(0, 6))
-        ttk.Button(tools, text="Open VBAN", command=lambda: webbrowser.open("https://vb-audio.com/Voicemeeter/vban.htm")).grid(row=0, column=1, sticky="ew", padx=6)
-        ttk.Button(tools, text="Open Scream", command=lambda: webbrowser.open("https://github.com/duncanthrax/scream")).grid(row=0, column=2, sticky="ew", padx=6)
-        ttk.Button(tools, text="Open SonoBus", command=lambda: webbrowser.open("https://www.sonobus.net/")).grid(row=0, column=3, sticky="ew", padx=(6, 0))
+        tools = tk.Frame(page, bg=BG)
+        tools.grid(row=3, column=0, sticky="ew", pady=(2, 8))
+        for i in range(4):
+            tools.columnconfigure(i, weight=1)
+        self._button(tools, "오디오 도구 확인", self._check_audio_tools, primary=True).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        self._button(tools, "VBAN 열기", lambda: webbrowser.open("https://vb-audio.com/Voicemeeter/vban.htm")).grid(row=0, column=1, sticky="ew", padx=6)
+        self._button(tools, "Scream 열기", lambda: webbrowser.open("https://github.com/duncanthrax/scream")).grid(row=0, column=2, sticky="ew", padx=6)
+        self._button(tools, "SonoBus 열기", lambda: webbrowser.open("https://www.sonobus.net/")).grid(row=0, column=3, sticky="ew", padx=(6, 0))
 
-        mixer = ttk.LabelFrame(page, text="Per-PC mixer profile", padding=10)
-        mixer.grid(row=5, column=0, sticky="nsew", pady=(14, 0))
+        mixer = self._card(page, 4, "PC별 볼륨")
+        mixer.grid(sticky="nsew")
         mixer.columnconfigure(1, weight=1)
         self.sound_mixer_frame = mixer
         self._refresh_sound_mixer()
-
-        ttk.Label(page, textvariable=self.sound_status_var, style="Sub.TLabel", wraplength=820).grid(row=6, column=0, sticky="w", pady=(12, 0))
+        tk.Label(page, textvariable=self.sound_status_var, bg=BG, fg=MUTED, font=("Segoe UI", 10), wraplength=820, justify="left").grid(row=5, column=0, sticky="w", pady=(8, 0))
         return page
 
-    def _running_page(self) -> ttk.Frame:
-        page = self._page("Running Log", "Shows what the app is doing now.")
-        page.rowconfigure(3, weight=1)
-        ttk.Button(page, text="Clear Log", command=lambda: self.log.delete("1.0", "end")).grid(row=2, column=0, sticky="e")
-        self.log = tk.Text(page, height=24, wrap="word", font=("Consolas", 10))
-        self.log.grid(row=3, column=0, sticky="nsew", pady=(8, 0))
-        return page
-
-    def _errors_page(self) -> ttk.Frame:
-        page = self._page("Error Log", "Shows failed files and reasons.")
-        page.rowconfigure(3, weight=1)
-        bar = ttk.Frame(page)
-        bar.grid(row=2, column=0, sticky="ew")
-        ttk.Button(bar, text="Refresh", style="Accent.TButton", command=self._refresh_errors).pack(side="left")
-        ttk.Button(bar, text="Retry Failed Files", command=self._retry_failed).pack(side="left", padx=(8, 0))
-        self.error_text = tk.Text(page, height=24, wrap="word", font=("Consolas", 10))
-        self.error_text.grid(row=3, column=0, sticky="nsew", pady=(10, 0))
-        return page
-
-    def _mcp_page(self) -> ttk.Frame:
-        page = self._page("MCP Connection", "Only needed for Codex, Cursor, Claude, or another AI tool. Normal users can ignore this page.")
+    def _running_page(self) -> tk.Frame:
+        page = self._page("실행로그", "앱이 지금 무엇을 하는지 보여줍니다.", "📋")
         page.rowconfigure(2, weight=1)
-        text = tk.Text(page, height=24, wrap="none", font=("Consolas", 10))
-        text.grid(row=2, column=0, sticky="nsew")
+        self._button(page, "로그 지우기", lambda: self.log.delete("1.0", "end")).grid(row=1, column=0, sticky="e")
+        self.log = tk.Text(page, height=24, wrap="word", font=("Consolas", 10), bg=SURFACE, relief="flat", padx=14, pady=12)
+        self.log.grid(row=2, column=0, sticky="nsew", pady=(8, 0))
+        return page
+
+    def _errors_page(self) -> tk.Frame:
+        page = self._page("에러로그", "실패한 파일과 이유만 모아서 보여줍니다.", "⚠️")
+        page.rowconfigure(2, weight=1)
+        bar = tk.Frame(page, bg=BG)
+        bar.grid(row=1, column=0, sticky="ew")
+        self._button(bar, "새로고침", self._refresh_errors, primary=True).pack(side="left")
+        self._button(bar, "실패 파일 재처리", self._retry_failed).pack(side="left", padx=8)
+        self.error_text = tk.Text(page, height=24, wrap="word", font=("Consolas", 10), bg=SURFACE, relief="flat", padx=14, pady=12)
+        self.error_text.grid(row=2, column=0, sticky="nsew", pady=(10, 0))
+        return page
+
+    def _mcp_page(self) -> tk.Frame:
+        page = self._page("MCP 연결", "Codex/Cursor/Claude 연결용입니다. 일반 사용자는 몰라도 됩니다.", "🔌")
+        page.rowconfigure(1, weight=1)
+        text = tk.Text(page, height=24, wrap="none", font=("Consolas", 10), bg=SURFACE, relief="flat", padx=14, pady=12)
+        text.grid(row=1, column=0, sticky="nsew")
         config = {
             "mcpServers": {
                 "local-compute": {
@@ -306,10 +386,10 @@ class LocalComputeApp(tk.Tk):
         text.configure(state="disabled")
         return page
 
-    def _path_row(self, parent: ttk.Frame, row: int, label: str, variable: tk.StringVar) -> None:
-        ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=10, pady=7)
-        ttk.Entry(parent, textvariable=variable).grid(row=row, column=1, sticky="ew", padx=10, pady=7)
-        ttk.Button(parent, text="Browse", command=lambda: self._browse(variable)).grid(row=row, column=2, sticky="ew", padx=10, pady=7)
+    def _path_row(self, parent: tk.Misc, row: int, label: str, variable: tk.StringVar) -> None:
+        tk.Label(parent, text=label, bg=SURFACE, fg=MUTED, font=("Segoe UI", 10, "bold")).grid(row=row, column=0, sticky="w", pady=8)
+        self._entry(parent, variable).grid(row=row, column=1, sticky="ew", padx=(10, 8), pady=8)
+        self._button(parent, "찾기", lambda: self._browse(variable)).grid(row=row, column=2, sticky="ew", pady=8)
 
     def _browse(self, variable: tk.StringVar) -> None:
         selected = filedialog.askdirectory(initialdir=variable.get() or str(APP_DIR))
@@ -317,6 +397,8 @@ class LocalComputeApp(tk.Tk):
             variable.set(selected)
 
     def _show(self, key: str) -> None:
+        for name, button in self.nav_buttons.items():
+            button.configure(bg=BRAND if name == key else "#191f2b", fg="white" if name == key else "#e5e7eb")
         if key == "sound":
             self._refresh_sound_mixer()
         self.pages[key].tkraise()
@@ -326,15 +408,15 @@ class LocalComputeApp(tk.Tk):
     def _load_workers(self) -> None:
         self.workers = load_all_workers(CONFIG_PATH)
         self._refresh_tree()
-        self._write("App is ready. Start with Device Registration.")
+        self._write("앱이 준비됐습니다. 홈에서 순서대로 시작하세요.")
 
     def _refresh_tree(self) -> None:
         if not hasattr(self, "tree"):
             return
         self.tree.delete(*self.tree.get_children())
         for index, worker in enumerate(self.workers):
-            host = "This PC" if worker.type == "local" else worker.host
-            status = "Enabled" if worker.enabled else "Off"
+            host = "이 PC" if worker.type == "local" else worker.host
+            status = "사용" if worker.enabled else "꺼짐"
             self.tree.insert("", "end", iid=str(index), values=(worker.name, host, worker.max_jobs, status))
 
     def _selected_index(self) -> int | None:
@@ -355,7 +437,7 @@ class LocalComputeApp(tk.Tk):
 
     def _save_workers(self) -> None:
         save_workers(CONFIG_PATH, self.workers)
-        self._write("Saved device list.")
+        self._write("기기 목록을 저장했습니다.")
         self._refresh_sound_mixer()
 
     def _append_worker(self, name: str, host: str) -> None:
@@ -385,7 +467,7 @@ class LocalComputeApp(tk.Tk):
         if index is None:
             return
         if self.workers[index].type == "local":
-            messagebox.showinfo("Cannot delete", "Keep this PC in the list.")
+            messagebox.showinfo("삭제 불가", "이 PC는 목록에 남겨두는 것이 안전합니다.")
             return
         del self.workers[index]
         self._refresh_tree()
@@ -394,7 +476,7 @@ class LocalComputeApp(tk.Tk):
     def _apply_form(self) -> None:
         index = self._selected_index()
         if index is None:
-            messagebox.showinfo("Select device", "Select a device first.")
+            messagebox.showinfo("기기 선택", "기기를 먼저 선택하세요.")
             return
         try:
             self.workers[index] = Worker(
@@ -409,7 +491,7 @@ class LocalComputeApp(tk.Tk):
                 ssh_options=["BatchMode=yes", "ConnectTimeout=8"],
             )
         except ValueError:
-            messagebox.showerror("Input error", "Parallel jobs must be a number.")
+            messagebox.showerror("입력 오류", "동시 처리 수는 숫자로 입력하세요.")
             return
         self._refresh_tree()
         self.tree.selection_set(str(index))
@@ -419,48 +501,46 @@ class LocalComputeApp(tk.Tk):
         if not self.pairing_server:
             self.pairing_server = PairingServer()
         info = self.pairing_server.start()
-        messagebox.showinfo(
-            "Allow Device Connection",
-            f"On the other PC, click 'Add by Number' and enter this code.\n\nCode: {info.code}\nThis PC address: {info.host}",
-        )
-        self._write(f"Pairing code active: {info.code}, address: {info.host}")
+        messagebox.showinfo("기기 연결 허용", f"다른 PC에서 '번호로 추가'를 누르고 입력하세요.\n\n번호: {info.code}\n이 PC 주소: {info.host}")
+        self._write(f"연결 번호 활성화: {info.code}, 주소: {info.host}")
 
     def _add_by_code(self) -> None:
         dialog = tk.Toplevel(self)
-        dialog.title("Add by Number")
-        dialog.geometry("360x170")
+        dialog.title("번호로 추가")
+        dialog.geometry("380x180")
         dialog.transient(self)
         dialog.grab_set()
+        dialog.configure(bg=BG)
         code_var = tk.StringVar()
-        ttk.Label(dialog, text="Enter the 6-digit code from the other PC").pack(anchor="w", padx=16, pady=(16, 6))
-        ttk.Entry(dialog, textvariable=code_var, font=("Segoe UI", 16)).pack(fill="x", padx=16)
+        tk.Label(dialog, text="다른 PC에 표시된 6자리 번호", bg=BG, fg=INK, font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=18, pady=(18, 6))
+        self._entry(dialog, code_var).pack(fill="x", padx=18)
 
         def add() -> None:
             code = code_var.get().strip()
             dialog.destroy()
-            self._run_background("Find device by code", lambda: self._pair_by_code(code))
+            self._run_background("번호로 기기 찾기", lambda: self._pair_by_code(code))
 
-        ttk.Button(dialog, text="Find Device", style="Accent.TButton", command=add).pack(fill="x", padx=16, pady=16)
+        self._button(dialog, "기기 찾기", add, primary=True).pack(fill="x", padx=18, pady=16)
 
     def _pair_by_code(self, code: str) -> object:
         info = find_pairing_code(code)
         if not info:
-            raise ValueError("Could not find a PC with that code. Check same Wi-Fi and firewall.")
+            raise ValueError("해당 번호의 PC를 찾지 못했습니다. 같은 Wi-Fi와 방화벽을 확인하세요.")
         self.queue.put(("add_worker", (info.name, info.host)))
         return {"name": info.name, "host": info.host}
 
     def _open_discovery(self) -> None:
-        self._run_background("Find same Wi-Fi PCs", discover_same_wifi)
+        self._run_background("같은 Wi-Fi PC 찾기", discover_same_wifi)
 
     def _test_selected(self) -> None:
         index = self._selected_index()
         if index is None:
-            messagebox.showinfo("Select device", "Select a device to test.")
+            messagebox.showinfo("기기 선택", "테스트할 기기를 선택하세요.")
             return
-        self._run_background("Test selected device", lambda: [test_worker(self.workers[index])])
+        self._run_background("선택 기기 테스트", lambda: [test_worker(self.workers[index])])
 
     def _test_all(self) -> None:
-        self._run_background("Check all device connections", lambda: [test_worker(worker) for worker in self._enabled_workers()])
+        self._run_background("전체 기기 연결 확인", lambda: [test_worker(worker) for worker in self._enabled_workers()])
 
     def _enabled_workers(self) -> list[Worker]:
         self._save_workers()
@@ -488,35 +568,35 @@ class LocalComputeApp(tk.Tk):
             workers = self._enabled_workers()
             jobs = discover_jobs(self.folder_var.get(), self.pattern_var.get())
             if not jobs:
-                raise ValueError("No files found in the selected folder.")
+                raise ValueError("선택한 폴더에서 처리할 파일을 찾지 못했습니다.")
             return run_jobs(workers, jobs, self.command_var.get(), self.output_var.get(), self.logs_var.get())
 
-        self._run_background("File processing", task)
+        self._run_background("파일 처리", task)
 
     def _retry_failed(self) -> None:
-        self._run_background("Retry failed files", lambda: retry_failed(self._enabled_workers(), self.command_var.get(), self.output_var.get(), self.logs_var.get()))
+        self._run_background("실패 파일 재처리", lambda: retry_failed(self._enabled_workers(), self.command_var.get(), self.output_var.get(), self.logs_var.get()))
 
     def _run_share_setup(self) -> None:
         script = APP_DIR / "setup_shared_disk_on_A_admin.bat"
         if not script.exists():
-            messagebox.showerror("File not found", f"Shared folder setup file is missing.\n{script}")
+            messagebox.showerror("파일 없음", f"공유폴더 설정 파일이 없습니다.\n{script}")
             return
         subprocess.Popen([str(script)], cwd=str(APP_DIR), shell=True)
-        self._write("Opened shared folder setup. Accept the Windows permission prompt if it appears.")
+        self._write("공유폴더 설정 창을 열었습니다. Windows 권한 확인이 뜨면 허용하세요.")
 
     def _refresh_errors(self) -> None:
         self.error_text.delete("1.0", "end")
         path = Path(self.logs_var.get()) / "joblog.tsv"
         if not path.exists():
-            self.error_text.insert("end", "No error log yet.")
+            self.error_text.insert("end", "아직 에러 로그가 없습니다.")
             return
         with path.open("r", encoding="utf-8", newline="") as handle:
             failed = [row for row in csv.DictReader(handle, delimiter="\t") if row.get("status") != "success"]
         if not failed:
-            self.error_text.insert("end", "No failed files.")
+            self.error_text.insert("end", "실패한 파일이 없습니다.")
             return
         for row in failed:
-            self.error_text.insert("end", f"File: {row.get('input')}\nDevice: {row.get('worker')}\nExit code: {row.get('exit_code')}\n")
+            self.error_text.insert("end", f"파일: {row.get('input')}\n기기: {row.get('worker')}\n종료 코드: {row.get('exit_code')}\n")
             if row.get("stderr"):
                 self.error_text.insert("end", row["stderr"] + "\n")
             self.error_text.insert("end", "\n")
@@ -532,11 +612,7 @@ class LocalComputeApp(tk.Tk):
         self.sound_mode.set(str(data.get("mode", self.sound_mode.get())))
 
     def _save_sound_config(self) -> None:
-        data = {
-            "master_volume": self.master_volume.get(),
-            "mode": self.sound_mode.get(),
-            "devices": {},
-        }
+        data = {"master_volume": self.master_volume.get(), "mode": self.sound_mode.get(), "devices": {}}
         for name, controls in self.sound_rows.items():
             volume = controls.get("volume")
             muted = controls.get("muted")
@@ -557,36 +633,31 @@ class LocalComputeApp(tk.Tk):
             except Exception:
                 saved = {}
         if not self.workers:
-            ttk.Label(self.sound_mixer_frame, text="No devices registered yet. Add PCs in Device Registration first.").grid(row=0, column=0, sticky="w")
+            tk.Label(self.sound_mixer_frame, text="아직 등록된 기기가 없습니다.", bg=SURFACE, fg=MUTED, font=("Segoe UI", 11)).grid(row=0, column=0, sticky="w")
             return
-
-        ttk.Label(self.sound_mixer_frame, text="Device").grid(row=0, column=0, sticky="w", padx=8, pady=4)
-        ttk.Label(self.sound_mixer_frame, text="Volume").grid(row=0, column=1, sticky="w", padx=8, pady=4)
-        ttk.Label(self.sound_mixer_frame, text="Mute").grid(row=0, column=2, sticky="w", padx=8, pady=4)
-        ttk.Label(self.sound_mixer_frame, text="Activity").grid(row=0, column=3, sticky="w", padx=8, pady=4)
-
+        for col, label in enumerate(["기기", "볼륨", "음소거", "소리 감지"]):
+            tk.Label(self.sound_mixer_frame, text=label, bg=SURFACE, fg=MUTED, font=("Segoe UI", 10, "bold")).grid(row=0, column=col, sticky="w", padx=8, pady=4)
         for row, worker in enumerate(self.workers, start=1):
             device_data = saved.get(worker.name, {}) if isinstance(saved, dict) else {}
             volume = tk.IntVar(value=int(device_data.get("volume", 80)) if isinstance(device_data, dict) else 80)
             muted = tk.BooleanVar(value=bool(device_data.get("muted", False)) if isinstance(device_data, dict) else False)
-            ttk.Label(self.sound_mixer_frame, text=worker.name).grid(row=row, column=0, sticky="w", padx=8, pady=6)
-            ttk.Scale(self.sound_mixer_frame, from_=0, to=100, variable=volume, orient="horizontal", command=lambda _v: self._save_sound_config()).grid(row=row, column=1, sticky="ew", padx=8, pady=6)
-            ttk.Checkbutton(self.sound_mixer_frame, variable=muted, command=self._save_sound_config).grid(row=row, column=2, sticky="w", padx=8, pady=6)
-            activity = ttk.Progressbar(self.sound_mixer_frame, maximum=100, value=0)
-            activity.grid(row=row, column=3, sticky="ew", padx=8, pady=6)
-            self.sound_rows[worker.name] = {"volume": volume, "muted": muted, "activity": activity}
+            tk.Label(self.sound_mixer_frame, text=worker.name, bg=SURFACE, fg=INK, font=("Segoe UI", 11, "bold")).grid(row=row, column=0, sticky="w", padx=8, pady=7)
+            ttk.Scale(self.sound_mixer_frame, from_=0, to=100, variable=volume, orient="horizontal", command=lambda _v: self._save_sound_config()).grid(row=row, column=1, sticky="ew", padx=8, pady=7)
+            tk.Checkbutton(self.sound_mixer_frame, variable=muted, bg=SURFACE, command=self._save_sound_config).grid(row=row, column=2, sticky="w", padx=8, pady=7)
+            ttk.Progressbar(self.sound_mixer_frame, maximum=100, value=0).grid(row=row, column=3, sticky="ew", padx=8, pady=7)
+            self.sound_rows[worker.name] = {"volume": volume, "muted": muted}
         self.sound_mixer_frame.columnconfigure(1, weight=1)
         self.sound_mixer_frame.columnconfigure(3, weight=1)
 
     def _test_beep(self) -> None:
         volume = self.master_volume.get()
-        self.sound_status_var.set(f"Speaker test beep sent. Master volume profile: {volume}%.")
+        self.sound_status_var.set(f"스피커 테스트 완료. 저장된 전체 볼륨 값: {volume}%.")
         winsound.MessageBeep(winsound.MB_ICONASTERISK)
         self._save_sound_config()
 
     def _open_volume_mixer(self) -> None:
         subprocess.Popen(["sndvol.exe"])
-        self.sound_status_var.set("Opened Windows Volume Mixer.")
+        self.sound_status_var.set("Windows 볼륨 믹서를 열었습니다.")
 
     def _check_audio_tools(self) -> None:
         checks = {
@@ -597,8 +668,8 @@ class LocalComputeApp(tk.Tk):
         lines: list[str] = []
         for label, executables in checks.items():
             found = any(self._where(exe) for exe in executables)
-            lines.append(f"{label}: {'found' if found else 'not found'}")
-        lines.append("Note: this app currently saves mixer settings and opens helper tools. Real network audio requires VBAN, Scream, or SonoBus setup.")
+            lines.append(f"{label}: {'설치됨' if found else '없음'}")
+        lines.append("실제 네트워크 오디오는 VBAN, Scream, SonoBus 중 하나를 연결해야 합니다.")
         self.sound_status_var.set(" | ".join(lines))
         self._write("\n".join(lines))
 
@@ -609,7 +680,7 @@ class LocalComputeApp(tk.Tk):
 
     def _run_background(self, title: str, fn) -> None:
         self._show("running")
-        self._write(f"{title} started")
+        self._write(f"{title} 시작")
 
         def wrapped() -> None:
             try:
@@ -627,17 +698,16 @@ class LocalComputeApp(tk.Tk):
                     name, host = payload
                     self._append_worker(name, host)
                     self._save_workers()
-                    self._write(f"Added device: {name} ({host})")
+                    self._write(f"기기를 추가했습니다: {name} ({host})")
                     continue
-
                 title, value = payload
                 if kind == "error":
-                    self._write(f"{title} failed: {value}")
+                    self._write(f"{title} 실패: {value}")
                     messagebox.showerror(title, str(value))
                 else:
-                    if title == "Find same Wi-Fi PCs" and isinstance(value, list):
+                    if title == "같은 Wi-Fi PC 찾기" and isinstance(value, list):
                         self._show_discovery_results(value)
-                    self._write(f"{title} complete")
+                    self._write(f"{title} 완료")
                     self._write(str(value))
         except queue.Empty:
             pass
@@ -645,17 +715,18 @@ class LocalComputeApp(tk.Tk):
 
     def _show_discovery_results(self, devices: list[NetworkDevice]) -> None:
         dialog = tk.Toplevel(self)
-        dialog.title("Found PCs")
+        dialog.title("찾은 PC")
         dialog.geometry("560x380")
         dialog.transient(self)
         dialog.grab_set()
-        frame = ttk.Frame(dialog, padding=12)
+        dialog.configure(bg=BG)
+        frame = tk.Frame(dialog, bg=BG, padx=14, pady=14)
         frame.pack(fill="both", expand=True)
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
         tree = ttk.Treeview(frame, columns=("ip", "name"), show="headings", selectmode="browse")
-        tree.heading("ip", text="Address")
-        tree.heading("name", text="Name")
+        tree.heading("ip", text="주소")
+        tree.heading("name", text="이름")
         tree.grid(row=0, column=0, sticky="nsew")
         for index, device in enumerate(devices):
             tree.insert("", "end", iid=str(index), values=(device.ip, device.name))
@@ -669,7 +740,7 @@ class LocalComputeApp(tk.Tk):
             self._save_workers()
             dialog.destroy()
 
-        ttk.Button(frame, text="Add Selected PC", style="Accent.TButton", command=add).grid(row=1, column=0, sticky="ew", pady=(12, 0))
+        self._button(frame, "선택한 PC 추가", add, primary=True).grid(row=1, column=0, sticky="ew", pady=(12, 0))
 
     def _write(self, text: str) -> None:
         if hasattr(self, "log"):
