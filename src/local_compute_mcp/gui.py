@@ -7,18 +7,24 @@ import subprocess
 import sys
 import threading
 import webbrowser
-import winsound
 from pathlib import Path
 from tkinter import filedialog, messagebox
 import tkinter as tk
 from tkinter import ttk
-from PIL import ImageGrab
 
 from .config import Worker, load_all_workers, load_workers, save_workers
 from .discovery import NetworkDevice, discover_same_wifi
 from .pairing import PairingServer, find_pairing_code
-from .remote_assist import RemoteAssistServer
+from .remote_assist import RemoteAssistServer, save_screenshot
 from .runner import discover_jobs, retry_failed, run_jobs, test_worker
+from .sound_hub import (
+    SoundHubConfig,
+    check_audio_tools,
+    load_sound_config,
+    open_windows_volume_mixer,
+    save_sound_config,
+    test_speaker_beep,
+)
 
 
 def app_dir() -> Path:
@@ -692,10 +698,7 @@ class LocalComputeApp(tk.Tk):
 
     def _save_local_screenshot(self) -> None:
         try:
-            output_dir = Path(self.output_var.get())
-            output_dir.mkdir(parents=True, exist_ok=True)
-            path = output_dir / "assist-screenshot.png"
-            ImageGrab.grab().save(path)
+            path = save_screenshot(Path(self.output_var.get()) / "assist-screenshot.png")
         except Exception as exc:
             messagebox.showerror("스크린샷 저장", str(exc))
             return
@@ -723,23 +726,21 @@ class LocalComputeApp(tk.Tk):
             messagebox.showerror("엑셀 열기", "Excel을 찾지 못했습니다. 이 PC에 Microsoft Excel이 설치되어 있는지 확인해주세요.")
 
     def _load_sound_config(self) -> None:
-        if not SOUND_CONFIG_PATH.exists():
-            return
-        try:
-            data = json.loads(SOUND_CONFIG_PATH.read_text(encoding="utf-8"))
-        except Exception:
-            return
-        self.master_volume.set(int(data.get("master_volume", self.master_volume.get())))
-        self.sound_mode.set(str(data.get("mode", self.sound_mode.get())))
+        config = load_sound_config(SOUND_CONFIG_PATH, self.master_volume.get(), self.sound_mode.get())
+        self.master_volume.set(config.master_volume)
+        self.sound_mode.set(config.mode)
 
     def _save_sound_config(self) -> None:
-        data = {"master_volume": self.master_volume.get(), "mode": self.sound_mode.get(), "devices": {}}
+        devices: dict[str, dict[str, object]] = {}
         for name, controls in self.sound_rows.items():
             volume = controls.get("volume")
             muted = controls.get("muted")
             if isinstance(volume, tk.IntVar) and isinstance(muted, tk.BooleanVar):
-                data["devices"][name] = {"volume": volume.get(), "muted": muted.get()}
-        SOUND_CONFIG_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+                devices[name] = {"volume": volume.get(), "muted": muted.get()}
+        save_sound_config(
+            SOUND_CONFIG_PATH,
+            SoundHubConfig(master_volume=self.master_volume.get(), mode=self.sound_mode.get(), devices=devices),
+        )
 
     def _refresh_sound_mixer(self) -> None:
         if not hasattr(self, "sound_mixer_frame"):
@@ -747,12 +748,7 @@ class LocalComputeApp(tk.Tk):
         for child in self.sound_mixer_frame.winfo_children():
             child.destroy()
         self.sound_rows = {}
-        saved: dict[str, object] = {}
-        if SOUND_CONFIG_PATH.exists():
-            try:
-                saved = json.loads(SOUND_CONFIG_PATH.read_text(encoding="utf-8")).get("devices", {})
-            except Exception:
-                saved = {}
+        saved = load_sound_config(SOUND_CONFIG_PATH, self.master_volume.get(), self.sound_mode.get()).devices
         if not self.workers:
             tk.Label(self.sound_mixer_frame, text="아직 등록된 기기가 없습니다.", bg=SURFACE, fg=MUTED, font=("Segoe UI", 11)).grid(row=0, column=0, sticky="w")
             return
@@ -773,31 +769,21 @@ class LocalComputeApp(tk.Tk):
     def _test_beep(self) -> None:
         volume = self.master_volume.get()
         self.sound_status_var.set(f"스피커 테스트 완료. 저장된 전체 볼륨 값: {volume}%.")
-        winsound.MessageBeep(winsound.MB_ICONASTERISK)
+        test_speaker_beep()
         self._save_sound_config()
 
     def _open_volume_mixer(self) -> None:
-        subprocess.Popen(["sndvol.exe"])
+        open_windows_volume_mixer()
         self.sound_status_var.set("Windows 볼륨 믹서를 열었습니다.")
 
     def _check_audio_tools(self) -> None:
-        checks = {
-            "Voicemeeter/VBAN": ["voicemeeter.exe", "voicemeeter8.exe", "voicemeeterpro.exe"],
-            "Scream Receiver": ["scream.exe"],
-            "SonoBus": ["SonoBus.exe", "sonobus.exe"],
-        }
+        checks = check_audio_tools()
         lines: list[str] = []
-        for label, executables in checks.items():
-            found = any(self._where(exe) for exe in executables)
+        for label, found in checks.items():
             lines.append(f"{label}: {'설치됨' if found else '없음'}")
         lines.append("실제 네트워크 오디오는 VBAN, Scream, SonoBus 중 하나를 연결해야 합니다.")
         self.sound_status_var.set(" | ".join(lines))
         self._write("\n".join(lines))
-
-    @staticmethod
-    def _where(executable: str) -> bool:
-        completed = subprocess.run(["where", executable], capture_output=True, text=True, shell=True)
-        return completed.returncode == 0
 
     def _on_close(self) -> None:
         if self.remote_assist_server is not None:

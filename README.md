@@ -58,6 +58,7 @@ Each PC runs its own task, then writes results back to the shared folder.
 | `src/local_compute_mcp/discovery.py` | Same-Wi-Fi/LAN PC discovery |
 | `src/local_compute_mcp/pairing.py` | 6-digit pairing-code prototype |
 | `src/local_compute_mcp/remote_assist.py` | User-approved screenshot-sharing server |
+| `src/local_compute_mcp/sound_hub.py` | Sound hub settings, tool checks, Windows mixer helpers |
 | `src/local_compute_mcp/server.py` | MCP stdio server |
 | `src/local_compute_mcp/cli.py` | CLI wrapper |
 | `workers.yaml` | Registered PCs/workers |

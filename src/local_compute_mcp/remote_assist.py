@@ -7,6 +7,7 @@ import socket
 import threading
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs
 
 from PIL import ImageGrab
@@ -15,6 +16,12 @@ from .discovery import find_local_ipv4s
 
 
 ASSIST_PORT = 18766
+
+
+def save_screenshot(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ImageGrab.grab().save(path)
+    return path
 
 
 @dataclass(frozen=True)
