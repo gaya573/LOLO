@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import load_workers
+from .mcp_registry import inspect_workers_mcp
 from .runner import discover_jobs, retry_failed, run_jobs, test_worker
 
 
@@ -60,6 +61,8 @@ class McpServer:
                 arguments.get("output_dir", "outputs"),
                 arguments.get("logs_dir", "logs"),
             )
+        elif name == "inspect_mcp":
+            data = [entry.__dict__ for entry in inspect_workers_mcp(workers)]
         else:
             raise ValueError(f"Unknown tool: {name}")
 
@@ -106,6 +109,11 @@ class McpServer:
                         "config_path": {"type": "string"},
                     },
                 },
+            },
+            {
+                "name": "inspect_mcp",
+                "description": "Inspect Codex/Cursor MCP registrations on enabled PCs.",
+                "inputSchema": {"type": "object", "properties": {"config_path": {"type": "string"}}},
             },
         ]
 

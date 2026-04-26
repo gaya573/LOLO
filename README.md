@@ -56,6 +56,7 @@ Each PC runs its own task, then writes results back to the shared folder.
 | `src/local_compute_mcp/runner.py` | Distributed job runner |
 | `src/local_compute_mcp/config.py` | `workers.yaml` parser/writer |
 | `src/local_compute_mcp/discovery.py` | Same-Wi-Fi/LAN PC discovery |
+| `src/local_compute_mcp/mcp_registry.py` | Reads Codex/Cursor MCP registrations on each PC |
 | `src/local_compute_mcp/pairing.py` | 6-digit pairing-code prototype |
 | `src/local_compute_mcp/remote_assist.py` | User-approved screenshot-sharing server |
 | `src/local_compute_mcp/sound_hub.py` | Sound hub settings, tool checks, Windows mixer helpers |
@@ -246,6 +247,18 @@ Available MCP tools:
 | `test_workers` | Test local/SSH workers |
 | `submit_jobs` | Run distributed file jobs |
 | `retry_failed` | Retry failed jobs from `joblog.tsv` |
+| `inspect_mcp` | Show Codex/Cursor MCP registrations on enabled PCs |
+
+## MCP Registry Viewer
+
+The app can show what MCP servers are already registered in Codex and Cursor on the current PC.
+
+| Source | File Read |
+|---|---|
+| Codex | `%USERPROFILE%\.codex\config.toml` |
+| Cursor | `%USERPROFILE%\.cursor\mcp.json` |
+
+For registered SSH PCs, the app tries to run the same MCP registry command on that PC. If SSH is not ready, the row shows the connection error instead of hiding the failure.
 
 ## Sound Hub Prototype
 

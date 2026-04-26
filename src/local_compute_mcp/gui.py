@@ -14,6 +14,7 @@ from tkinter import ttk
 
 from .config import Worker, load_all_workers, load_workers, save_workers
 from .discovery import NetworkDevice, discover_same_wifi
+from .mcp_registry import McpEntry, inspect_local_mcp, inspect_workers_mcp
 from .pairing import PairingServer, find_pairing_code
 from .remote_assist import RemoteAssistServer, save_screenshot
 from .runner import discover_jobs, retry_failed, run_jobs, test_worker
@@ -447,8 +448,8 @@ class LocalComputeApp(tk.Tk):
 
     def _mcp_page(self) -> tk.Frame:
         page = self._page("MCP 연결", "Codex/Cursor/Claude 연결용입니다. 일반 사용자는 몰라도 됩니다.", "🔌")
-        page.rowconfigure(1, weight=1)
-        text = tk.Text(page, height=24, wrap="none", font=("Consolas", 10), bg=SURFACE, relief="flat", padx=14, pady=12)
+        page.rowconfigure(3, weight=1)
+        text = tk.Text(page, height=11, wrap="none", font=("Consolas", 10), bg=SURFACE, relief="flat", padx=14, pady=12)
         text.grid(row=1, column=0, sticky="nsew")
         config = {
             "mcpServers": {
@@ -461,6 +462,18 @@ class LocalComputeApp(tk.Tk):
         }
         text.insert("end", json.dumps(config, ensure_ascii=False, indent=2))
         text.configure(state="disabled")
+
+        actions = tk.Frame(page, bg=BG)
+        actions.grid(row=2, column=0, sticky="ew", pady=10)
+        for index in range(3):
+            actions.columnconfigure(index, weight=1)
+        self._button(actions, "내 PC MCP 확인", self._inspect_local_mcp, primary=True).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        self._button(actions, "등록 PC MCP 확인", self._inspect_all_mcp).grid(row=0, column=1, sticky="ew", padx=6)
+        self._button(actions, "MCP 목록 지우기", self._clear_mcp_inventory).grid(row=0, column=2, sticky="ew", padx=(6, 0))
+
+        self.mcp_inventory_text = tk.Text(page, height=13, wrap="word", font=("Consolas", 10), bg=SURFACE, relief="flat", padx=14, pady=12)
+        self.mcp_inventory_text.grid(row=3, column=0, sticky="nsew")
+        self.mcp_inventory_text.insert("end", "버튼을 누르면 이 PC 또는 등록된 PC의 Codex/Cursor MCP 등록 목록을 보여줍니다.\n")
         return page
 
     def _path_row(self, parent: tk.Misc, row: int, label: str, variable: tk.StringVar) -> None:
@@ -653,6 +666,30 @@ class LocalComputeApp(tk.Tk):
     def _retry_failed(self) -> None:
         self._run_background("실패 파일 재처리", lambda: retry_failed(self._enabled_workers(), self.command_var.get(), self.output_var.get(), self.logs_var.get()))
 
+    def _inspect_local_mcp(self) -> None:
+        self._show_mcp_inventory(inspect_local_mcp("local"))
+
+    def _inspect_all_mcp(self) -> None:
+        self._run_background("MCP 등록 확인", lambda: inspect_workers_mcp(self._enabled_workers()))
+
+    def _clear_mcp_inventory(self) -> None:
+        if hasattr(self, "mcp_inventory_text"):
+            self.mcp_inventory_text.delete("1.0", "end")
+
+    def _show_mcp_inventory(self, entries: list[McpEntry]) -> None:
+        if not hasattr(self, "mcp_inventory_text"):
+            return
+        self.mcp_inventory_text.delete("1.0", "end")
+        if not entries:
+            self.mcp_inventory_text.insert("end", "등록된 MCP를 찾지 못했습니다.\n")
+            return
+        for entry in entries:
+            self.mcp_inventory_text.insert("end", f"[{entry.pc}] {entry.app} / {entry.name}\n")
+            self.mcp_inventory_text.insert("end", f"  방식: {entry.kind}\n")
+            self.mcp_inventory_text.insert("end", f"  대상: {entry.target or '-'}\n")
+            self.mcp_inventory_text.insert("end", f"  상태: {entry.status}\n")
+            self.mcp_inventory_text.insert("end", f"  파일: {entry.source}\n\n")
+
     def _run_share_setup(self) -> None:
         script = APP_DIR / "setup_shared_disk_on_A_admin.bat"
         if not script.exists():
@@ -821,6 +858,9 @@ class LocalComputeApp(tk.Tk):
                 else:
                     if title == "같은 Wi-Fi PC 찾기" and isinstance(value, list):
                         self._show_discovery_results(value)
+                    if title == "MCP 등록 확인" and isinstance(value, list):
+                        self._show("mcp")
+                        self._show_mcp_inventory(value)
                     self._write(f"{title} 완료")
                     self._write(str(value))
         except queue.Empty:
